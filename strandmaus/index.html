@@ -24,6 +24,10 @@
     tarnung=0.45    0 bis 1: wie nah das Fell an der Bodenfarbe liegt (Feinabstimmung für den Probelauf)
     fangfaktor=0.2  Automatik und Testrechnung: Fangchance einer getarnten Maus im Verhältnis zu einer auffälligen
     auto=1          die Eule jagt von selbst (Beamer, Lernende, die nicht tippen können)
+    auto=2          Selbstlauf für den Beamer: wie auto=1, dazu laufen nach dem ersten Tipp alle Nächte, die Sandinsel
+                    und das Festland ohne weiteren Tipp bis zum Vergleich
+    halt=45         Halt nach Nacht 1 auf der Sandinsel: Der Knopf „Nächste Nacht“ ist so viele Sekunden gesperrt
+                    (0 schaltet den Halt aus; mit auto gibt es keinen Halt)
     lehrkraft=1     Knopf „Lehrkraft“: gemessene Fangquote, Automatik für eine Nacht, Testrechnung
 -->
 <style>
@@ -70,6 +74,7 @@ button{font-family:inherit}
 /* Der Knopf der Morgen-Karte bleibt am unteren Rand sichtbar, auch wenn die Karte länger ist als der Bildschirm. */
 #morgen .fuss{position:-webkit-sticky;position:sticky;bottom:0;background:#fff;margin:0 -18px;padding:0 18px 16px 18px;
   border-radius:0 0 14px 14px}
+#morgen .halt{margin:0;padding-top:8px}
 #morgen:focus,.karte:focus{outline:none}
 .scroll{overscroll-behavior:contain}
 @media (orientation:portrait){
@@ -97,6 +102,10 @@ ol.schritte li{margin:6px 0}
 .knopf{display:inline-block;min-height:54px;padding:12px 24px;font-size:21px;font-weight:600;border:2px solid var(--knopf);
   border-radius:12px;background:var(--knopf);color:#fff;margin:10px 10px 0 0}
 .knopf.zweit{background:#fff;color:var(--knopf)}
+.knopf[disabled]{background:#7f8590;border-color:#7f8590;color:#fff;-webkit-text-fill-color:#fff;opacity:1}
+/* Die Knöpfe einer Karte bleiben am unteren Rand sichtbar, auch wenn die Karte länger ist als der Bildschirm. */
+.karte .fuss{position:-webkit-sticky;position:sticky;bottom:0;background:#fff;margin:0 -24px -22px -24px;
+  padding:0 24px 22px 24px;border-radius:0 0 16px 16px}
 .tab{border-collapse:collapse;font-size:19px;margin:8px 0}
 .tab th,.tab td{border:1px solid var(--linie);padding:5px 12px;text-align:center}
 .tab th{background:#f1f2f5}
@@ -110,6 +119,10 @@ ol.schritte li{margin:6px 0}
 .spalten>div.tab-spalte{flex:0 0 auto}
 .vergleich .tab{font-size:16px}
 .vergleich .tab th,.vergleich .tab td{padding:3px 8px}
+/* Vergleich mit drei Böden (nach der Wanderung): breitere Karte, schmalere Spalten, alle drei in einer Zeile. */
+.karte.drei{max-width:1140px}
+.drei .spalten>div{flex:1 1 240px;margin-right:10px}
+.drei .tab th,.drei .tab td{padding:3px 6px}
 .diagramm{width:100%;height:auto;display:block}
 .punkt{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid #555;vertical-align:-2px;margin-right:4px}
 .eule-bild{float:right;margin:0 0 6px 12px}
@@ -123,6 +136,36 @@ ol.schritte li{margin:6px 0}
 #lk-panel table{border-collapse:collapse;margin:4px 0}
 #lk-panel td,#lk-panel th{border:1px solid var(--linie);padding:2px 6px;text-align:center}
 code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit-user-select:text;user-select:text}
+/* Safari im Querformat lässt unter seinen Leisten weniger Höhe: Die Karten rücken enger zusammen, der Inhalt bleibt gleich. */
+@media (orientation:landscape) and (max-height:780px){
+  #schirm{padding:8px 14px}
+  .karte{margin:4px auto;padding:14px 20px;font-size:18px;line-height:1.35}
+  .karte .fuss{margin:0 -20px -14px -20px;padding:0 20px 14px 20px}
+  .karte h1{font-size:24px;margin-bottom:6px}
+  .karte p{margin:5px 0}
+  .karte .gross{font-size:20px}
+  .karte .riesig{font-size:32px}
+  .karte .tab{margin:4px 0}
+  .karte:not(.vergleich) .tab{font-size:17px}
+  .karte:not(.vergleich) .tab th,.karte:not(.vergleich) .tab td{padding:2px 9px}
+  .karte .diagramm{max-height:215px}
+  .karte .knopf{min-height:48px;padding:9px 22px;margin-top:6px}
+}
+/* Etwas mehr Höhe (Vollbild im Querformat): nur die Ränder um die Karte werden schmaler. */
+@media (orientation:landscape) and (min-height:781px) and (max-height:860px){
+  #schirm{padding:8px 14px}
+  .karte{margin:2px auto}
+}
+/* Hochformat: Tabelle und Diagramm stehen untereinander, das Diagramm bleibt deshalb niedriger. */
+@media (orientation:portrait){
+  #schirm{padding:8px 14px}
+  .karte{margin:2px auto}
+  .karte p{margin:6px 0}
+  .karte:not(.vergleich) .diagramm{max-height:230px}
+}
+/* Läuft eine Karte trotzdem über, verläuft der Text weich unter dem festen Fuß. */
+.fuss::before{content:"";position:absolute;left:0;right:0;top:-12px;height:12px;pointer-events:none;
+  background:linear-gradient(rgba(255,255,255,0),#fff)}
 </style>
 </head>
 <body>
@@ -171,7 +214,9 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     zeit: Math.round(zahl('zeit', 20, 5, 120)),
     tarnung: zahl('tarnung', 0.45, 0, 1),
     fangfaktor: zahl('fangfaktor', 0.2, 0, 1),
-    auto: Q.get('auto') === '1',
+    auto: Q.get('auto') === '1' || Q.get('auto') === '2',
+    selbst: Q.get('auto') === '2',
+    halt: Math.round(zahl('halt', 45, 0, 600)),
     lehrkraft: Q.get('lehrkraft') === '1'
   };
 
@@ -249,8 +294,38 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     S = {
       tok: alt + 1, boden: null, vorschau: 'sand', reihen: {}, fang: {}, nacht: 0, maeuse: [], bestand: [],
       gefangen: 0, laeuft: false, morgen: false, ende: 0, timer: null, autoTimer: null, nq: null, bodenGemalt: null,
-      frei: 0, pause: false, rest: 0
+      frei: 0, pause: false, rest: 0, ansicht: '', haltBis: 0, haltFertig: false
     };
+  }
+
+  // ---------- Halt nach Nacht 1 ----------
+  // Auf der Sandinsel bleibt „Nächste Nacht“ nach der ersten Nacht einige Sekunden gesperrt: In dieser Zeit werden die
+  // iPads umgedreht und die Zahlen gemeinsam eingetragen. Gemessen wird an der Uhr, nicht an Zeitgebern: Ein gesperrtes
+  // iPad zählt weiter, Neuladen verkürzt und verlängert den Halt nicht. Je Spiel gibt es den Halt einmal.
+  var haltTimer = null;
+  function haltOffen() {
+    return CFG.halt > 0 && !CFG.auto && S.boden === 'sand' && S.nacht === 1 && CFG.naechte > 1 && !S.haltFertig;
+  }
+  function haltPruefen() {
+    if (!S.haltBis) { clearInterval(haltTimer); return; }
+    if (Date.now() < S.haltBis) return;
+    haltEnde();
+  }
+  function haltEnde() {
+    clearInterval(haltTimer);
+    if (!S.haltBis) return;
+    S.haltBis = 0; S.haltFertig = true;
+    if (S.morgen && S.ansicht === 'morgen') zeigeMorgen();
+    lkAuffrischen();
+  }
+
+  // ---------- Selbstlauf (auto=2) ----------
+  // Geht nach einer Pause von selbst weiter, solange dieselbe Ansicht steht und niemand getippt hat.
+  var selbstNr = 0;
+  function selbst(ms, ansicht, weiterMit) {
+    if (!CFG.selbst) return;
+    var tok = S.tok, nr = ++selbstNr;
+    setTimeout(function () { if (tok === S.tok && nr === selbstNr && S.ansicht === ansicht) weiterMit(); }, ms);
   }
 
   // ---------- Maße ----------
@@ -532,7 +607,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   }
 
   function nachtStart() {
-    S.nacht++; S.gefangen = 0; S.morgen = false;
+    S.nacht++; S.gefangen = 0; S.morgen = false; S.ansicht = 'nacht';
     zeige('morgen', false);
     S.maeuse = S.bestand.map(function (f) { return { farbe: f, jung: false, gefangen: false }; });
     verteile(S.maeuse);
@@ -613,7 +688,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
         S.maeuse.push(j);
         junge.push(j);
       }
-      hinweis('Die Mäuse, die überlebt haben, bekommen Junge. Im Spiel hat jedes Junge dieselbe Fellfarbe wie seine Eltern.', P.hJunge);
+      hinweis('Nur Mäuse, die überlebt haben, bekommen Junge. Im Spiel hat jedes Junge dieselbe Fellfarbe wie seine Eltern.', P.hJunge);
       junge.forEach(function (j, k) {
         setTimeout(function () { if (tok === S.tok) einblenden(j); }, k * P.takt);
       });
@@ -648,7 +723,11 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
 
   function zeigeMorgen() {
     var r = S.reihen[S.boden], k = r.length - 1, z = r[k], f = S.fang[S.boden][k - 1] || { h: 0, b: 0 },
-      letzte = S.nacht >= CFG.naechte;
+      letzte = S.nacht >= CFG.naechte, halt = haltOffen();
+    if (halt) {
+      if (!S.haltBis) S.haltBis = Date.now() + CFG.halt * 1000;
+      clearInterval(haltTimer); haltTimer = setInterval(haltPruefen, 500);
+    }
     $('morgen').innerHTML =
       '<h2>Nach Nacht ' + S.nacht + ': Generation ' + k + '</h2>' +
       '<p class="gross">Gefangen: ' + punkt('hell') + 'hell <b>' + f.h + '</b> &nbsp; ' + punkt('braun') + 'braun <b>' + f.b + '</b></p>' +
@@ -658,11 +737,17 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       (S.boden === 'wanderung' ? '<p>Vergleiche mit deiner Hypothese.</p>'
         : S.boden === 'wald' ? '<p>Für das Festland trägst du nur Start und Ende auf dem Arbeitsblatt ein.</p>'
         : '<p>Trage die Zahlen in die Tabelle auf dem Arbeitsblatt ein.</p>') +
-      '<div class="fuss"><button class="knopf" data-los="weiter">' + (letzte ? 'Ergebnis ansehen' : 'Nächste Nacht') + '</button></div>';
+      '<div class="fuss">' + (halt ? '<p class="halt"><b>Halt!</b> Dreh das iPad um. Wir tragen gemeinsam ein.</p>' : '') +
+      '<button class="knopf" data-los="weiter"' + (halt ? ' disabled' : '') + '>' + (letzte ? 'Ergebnis ansehen' : 'Nächste Nacht') + '</button></div>';
     zeige('morgen', true);
     $('morgen').scrollTop = 0;
     fokus($('morgen'));
     sichern('morgen');
+    selbst(3000, 'morgen', weiter);
+  }
+  function weiter() {
+    if (!S.morgen || (S.haltBis && Date.now() < S.haltBis)) return;
+    if (S.nacht >= CFG.naechte) ergebnis(); else nachtStart();
   }
 
   // ---------- Diagramm ----------
@@ -725,8 +810,8 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
         '<ol class="schritte">' +
         (CFG.auto
           ? '<li><b>Nacht:</b> Die Eule jagt von selbst. Schau zu.</li>'
-          : '<li><b>Nacht:</b> Tippe Mäuse an, um sie zu fangen. Du hast ' + CFG.zeit + ' Sekunden. Tippst du daneben, musst du kurz warten.</li>') +
-        '<li><b>Morgen:</b> Die Mäuse, die überlebt haben, bekommen Junge. Im Spiel steht jede Nacht für eine Generation.</li>' +
+          : '<li><b>Nacht:</b> Tippe Mäuse an. So fängst du sie. Du hast ' + CFG.zeit + ' Sekunden. Tippst du daneben, musst du kurz warten.</li>') +
+        '<li><b>Morgen:</b> Nur Mäuse, die überlebt haben, bekommen Junge. Im Spiel steht jede Nacht für eine Generation.</li>' +
         '<li><b>Tabelle:</b> Trage die Zahlen auf dem Arbeitsblatt ein.</li></ol>' +
         '<p>Das Spiel dauert ' + CFG.naechte + ' Nächte, also ' + gen(CFG.naechte) + '. Am Anfang sind ' + h + ' von ' + N + ' Mäusen hell.</p>' +
         '<p><b>In diesem Spiel ändert keine Maus ihre Farbe. Werden die hellen Mäuse trotzdem mehr?</b></p>' +
@@ -747,6 +832,8 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     }
     schirm('<div class="karte">' + inhalt + '</div>');
     sichern('intro');
+    // Selbstlauf: Die Sandinsel und die Wanderung beginnen mit einem Tipp, das Festland schließt von selbst an.
+    if (art === 'wald') selbst(5000, 'intro', function () { if (S.vorschau === 'wald') bodenStart('wald'); });
   }
 
   function ergebnis() {
@@ -773,9 +860,10 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       diagramm([{ farbe: BOEDEN[art].farbe, werte: anteile(r) }], false) + '</div></div>' +
       '<p class="gross">Nach ' + gen(r.length - 1) + ' sind <b>' + z.h + ' von ' + N + '</b> Mäusen hell. Das sind <b class="riesig">' + p + ' %</b>.</p>' +
       (art === 'sand' ? '<p class="gross">Für die Strichliste: <b>' + klasse(z.h) + '</b></p>' : '') +
-      auftrag + knoepfe + '</div>');
+      auftrag + '<div class="fuss">' + knoepfe + '</div></div>');
     S.nacht = 0; kopf();
     sichern('ergebnis');
+    selbst(6000, 'ergebnis', art === 'sand' ? function () { intro('wald'); } : vergleich);
   }
 
   function vergleich() {
@@ -795,7 +883,9 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     var namen = arten.map(function (a) { return BOEDEN[a].name; });
     var titel = namen.length > 1 ? namen.slice(0, -1).join(', ') + ' und ' + namen[namen.length - 1] : namen.join('');
     var wanderungFertig = arten.indexOf('wanderung') >= 0;
-    schirm('<div class="karte breit vergleich"><h1>Anteil heller Mäuse: ' + titel + '</h1><div class="spalten">' + teile.join('') + '</div>' +
+    schirm('<div class="karte breit vergleich' + (arten.length > 2 ? ' drei' : '') + '"><h1>Anteil heller Mäuse: ' + titel +
+      '</h1><div class="spalten">' + teile.join('') + '</div>' +
+      // Kein fester Fuß wie auf der Ergebnis-Karte: Am Beamer sollen die Tabellen frei bleiben, die Knöpfe eilen hier nicht.
       '<button class="knopf" data-los="intro-wanderung">' + (wanderungFertig ? 'Wanderung noch einmal' : 'Noch Zeit? Wanderung') + '</button>' +
       '<button class="knopf zweit" data-los="neu">Neu starten</button></div>');
     sichern('vergleich');
@@ -901,8 +991,12 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       quoteZeile('sand') + quoteZeile('wald') + quoteZeile('wanderung') + '</table>' +
       '<p class="hinweis-klein">Menschen fangen zuerst die Mäuse, die sie sehen. Liegt der Faktor unter 0,15, enden fast alle Durchgänge über 75 %, und die Strichliste streut kaum: <code>tarnung</code> senken (etwa 0.35) und neu messen. Liegt er über 0,3, werden die hellen Mäuse in vielen Durchgängen kaum mehr: <code>tarnung</code> erhöhen (etwa 0.55).</p>' +
       (S.laeuft ? '<button class="knopf" data-los="lk-auto">Diese Nacht: Eule automatisch</button>' : '') +
+      (S.haltBis ? '<button class="knopf" data-los="lk-halt">Halt beenden</button>' : '') +
       '<button class="knopf zweit" data-los="lk-test">Testrechnung (1000 Läufe)</button>' + lkTest +
-      '<p><b>Adressen</b><br>Eule jagt allein: <code>' + basis + '?auto=1</code><br>Mehr Zeit: <code>' + basis + '?zeit=30</code></p>' +
+      '<p><b>Halt nach Nacht 1:</b> Auf der Sandinsel ist „Nächste Nacht“ nach der ersten Nacht ' + CFG.halt + ' s gesperrt' +
+      (CFG.halt ? '' : ' (ausgeschaltet)') + '. Je Spiel einmal, nicht mit Automatik.</p>' +
+      '<p><b>Adressen</b><br>Eule jagt allein: <code>' + basis + '?auto=1</code><br>Selbstlauf bis zum Vergleich (Beamer, ein Tipp zum Start): <code>' + basis +
+      '?auto=2</code><br>Mehr Zeit: <code>' + basis + '?zeit=30</code><br>Ohne Halt: <code>' + basis + '?halt=0</code><br>Längerer Halt: <code>' + basis + '?halt=90</code></p>' +
       '<p class="hinweis-klein">Erstellt mit KI-Unterstützung (Claude), Stand November 2026. Vereinfachtes Modell nach Untersuchungen zur Strandmaus (Peromyscus polionotus) von Hoekstra u. a.; Grenzen: Die Mäuse sitzen still, es gibt einen Fressfeind, jedes Junge hat einen Elternteil, es gibt keine Mutation.</p>' +
       '<button class="knopf zweit" data-los="lk-zu">Schließen</button>';
   }
@@ -928,12 +1022,13 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   var SPEICHER = 'strandmaus-spiel-1', SPEICHER_Q = 'strandmaus-quote-1';
   function speicher() { try { return window.sessionStorage || null; } catch (e) { return null; } }
   function sichern(ansicht) {
+    S.ansicht = ansicht;
     var sp = speicher();
     if (!sp) return;
     try {
       sp.setItem(SPEICHER, JSON.stringify({
         adresse: location.search, ansicht: ansicht, art: S.boden || S.vorschau, nacht: S.nacht,
-        bestand: S.bestand, reihen: S.reihen, fang: S.fang
+        bestand: S.bestand, reihen: S.reihen, fang: S.fang, halt: S.haltFertig, haltBis: S.haltBis
       }));
     } catch (e) { /* Speicher voll oder gesperrt: Spiel läuft ohne Sicherung weiter */ }
   }
@@ -978,6 +1073,12 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     S.reihen = d.reihen; S.fang = d.fang || {};
     Object.keys(S.reihen).forEach(function (a) { if (!S.fang[a]) S.fang[a] = []; });
     GESPIELT = Object.keys(S.reihen).length ? 1 : 0;
+    // Halt nach Nacht 1: erledigt, wenn er vor dem Neuladen zu Ende war oder inzwischen abgelaufen ist; sonst läuft er weiter.
+    S.haltFertig = d.halt === true;
+    if (typeof d.haltBis === 'number' && d.haltBis > 0) {
+      if (d.haltBis > Date.now() && d.haltBis <= Date.now() + CFG.halt * 1000) S.haltBis = d.haltBis;
+      else S.haltFertig = true;
+    }
     var art = d.art;
     if (d.ansicht === 'intro' && BOEDEN[art]) { intro(art); return true; }
     if (d.ansicht === 'vergleich') {
@@ -1061,14 +1162,16 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     // Doppeltipp: Der zweite Tipp trifft sonst einen Knopf der nächsten Karte.
     if (Date.now() < klickBis) return;
     klickBis = Date.now() + 350;
+    if (los.indexOf('lk-') !== 0) selbstNr++; // ein Tipp auf einen Spielknopf geht dem Selbstlauf vor
     if (los === 'spiel-sand') bodenStart('sand');
     else if (los === 'spiel-wald') bodenStart('wald');
     else if (los === 'spiel-wanderung') bodenStart('wanderung');
     else if (los === 'intro-wald') intro('wald');
     else if (los === 'intro-wanderung') intro('wanderung');
     else if (los === 'vergleich') vergleich();
-    else if (los === 'weiter') { if (!S.morgen) return; if (S.nacht >= CFG.naechte) ergebnis(); else nachtStart(); }
+    else if (los === 'weiter') weiter();
     else if (los === 'lk-auto') { if (S.laeuft) { S.nq.auto = true; autoStart(); } }
+    else if (los === 'lk-halt') { haltEnde(); lkAuffrischen(); }
     else if (los === 'lk-test') lkTestAnzeigen();
     else if (los === 'lk-zu') zeige('lk-panel', false);
   });
