@@ -4,13 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="referrer" content="no-referrer">
+<!-- Leeres Symbol: Der Browser fragt sonst beim Server nach favicon.ico. -->
+<link rel="icon" href="data:,">
 <title>Die Eule und die Strandmäuse</title>
 <!--
   Simulationsspiel zur natürlichen Auslese an der Strandmaus, Klasse 8, UB 2 Biologie am 2026-11-19.
   Eine Datei, keine Nachladung aus dem Netz, keine Cookies, kein Ton. Gespeichert wird nur der Spielstand
   (Spielzahlen, nichts Personenbezogenes) im sessionStorage des Tabs: Er übersteht Neuladen und Zurückwischen
-  und endet mit dem Tab oder mit „Neu starten“.
+  und endet mit dem Tab oder mit „Neu starten“. Ist die Seite nicht zu sehen (Tab gewechselt, iPad gesperrt),
+  steht die Zeit der Nacht.
   Einstellungen über die Adresse, alle optional:
     start=20        Anteil heller Mäuse zu Beginn auf Sandinsel und Festland in Prozent
     wanderung=80    Anteil heller Mäuse zu Beginn der Wanderung in Prozent
@@ -33,7 +37,9 @@ html,body{margin:0;height:100%;background:var(--nacht);color:var(--text);
   -webkit-text-size-adjust:100%;overscroll-behavior:none}
 body{overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;
   -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-#app{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column}
+#app{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;
+  padding-bottom:env(safe-area-inset-bottom)}
+.ohne-js{position:absolute;top:0;left:0;right:0;z-index:9;padding:24px;background:var(--nacht);color:#fff;font-size:22px;line-height:1.4}
 header{flex:0 0 auto;min-height:60px;padding:env(safe-area-inset-top) 12px 0 12px;background:var(--nacht);color:#fff;
   display:flex;align-items:center;justify-content:space-between;font-size:19px}
 header>div{margin-right:10px}
@@ -45,7 +51,7 @@ header>div{margin-right:10px}
 .kopf-rechts{display:flex;align-items:center;margin-right:0}
 button{font-family:inherit}
 .klein{min-height:44px;padding:6px 14px;font-size:16px;border-radius:10px;border:2px solid rgba(255,255,255,.7);
-  background:transparent;color:#fff;margin-left:8px}
+  background:transparent;color:#fff;margin-left:8px;white-space:nowrap}
 #feld{position:relative;flex:1 1 auto;overflow:hidden;touch-action:none;background:#555}
 #boden{position:absolute;top:0;left:0}
 #maeuse{position:absolute;top:0;left:0;display:block}
@@ -58,13 +64,17 @@ button{font-family:inherit}
   border-radius:12px;opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
 #hinweis.an{opacity:1}
 #morgen{position:absolute;right:12px;top:12px;bottom:12px;width:330px;background:rgba(255,255,255,.97);
-  border-radius:14px;padding:16px 18px;box-shadow:0 4px 18px rgba(0,0,0,.35);overflow-y:auto;display:none;
+  border-radius:14px;padding:16px 18px 0 18px;box-shadow:0 4px 18px rgba(0,0,0,.35);overflow-y:auto;display:none;
   -webkit-overflow-scrolling:touch}
 #morgen.an{display:block}
+/* Der Knopf der Morgen-Karte bleibt am unteren Rand sichtbar, auch wenn die Karte länger ist als der Bildschirm. */
+#morgen .fuss{position:-webkit-sticky;position:sticky;bottom:0;background:#fff;margin:0 -18px;padding:0 18px 16px 18px;
+  border-radius:0 0 14px 14px}
+#morgen:focus,.karte:focus{outline:none}
+.scroll{overscroll-behavior:contain}
 @media (orientation:portrait){
   #morgen{left:12px;right:12px;top:auto;width:auto;max-height:60%}
 }
-.klein{white-space:nowrap}
 @media (max-width:860px){
   header{font-size:16px;padding-left:8px;padding-right:8px}
   header>div{margin-right:6px}
@@ -120,22 +130,23 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   <header>
     <div id="k-ort">Strandmäuse</div>
     <div id="k-fang"></div>
-    <div id="k-zeit"><span id="k-zeit-text"></span><div id="k-balken"><div></div></div></div>
+    <div id="k-zeit"><span id="k-zeit-text"></span><div id="k-balken" aria-hidden="true"><div></div></div></div>
     <div class="kopf-rechts">
       <button id="lk" class="klein" hidden>Lehrkraft</button>
       <button id="neu" class="klein" data-los="neu">Neu starten</button>
     </div>
   </header>
   <div id="feld">
-    <canvas id="boden"></canvas>
-    <svg id="maeuse" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <noscript><div class="ohne-js">Das Spiel startet hier nicht. Öffne die Adresse in Safari.</div></noscript>
+    <canvas id="boden" aria-hidden="true"></canvas>
+    <svg id="maeuse" role="img" aria-label="Spielfeld von oben mit hellen und braunen Mäusen" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <defs id="defs"></defs>
       <g id="schicht"></g>
       <g id="effekte"></g>
     </svg>
     <div id="nacht"></div>
-    <div id="hinweis"></div>
-    <div id="morgen" class="scroll"></div>
+    <div id="hinweis" role="status" aria-live="polite"></div>
+    <div id="morgen" class="scroll" role="region" aria-label="Morgen: Zahlen nach der Nacht"></div>
     <div id="schirm" class="scroll"></div>
     <div id="lk-panel" class="scroll"></div>
   </div>
@@ -197,6 +208,13 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
+  // Karten ein- und ausblenden. Die Klasse „scroll“ bleibt immer stehen: Nur in Elementen mit dieser Klasse
+  // lässt der touchmove-Wächter unten das Wischen zu.
+  function zeige(id, an) { $(id).className = an ? 'scroll an' : 'scroll'; }
+  function fokus(e) {
+    if (!e || !e.focus) return;
+    try { e.setAttribute('tabindex', '-1'); e.focus({ preventScroll: true }); } catch (x) { /* Fokus ist nur eine Hilfe */ }
+  }
   function animiere(dauer, schritt, fertig) {
     var t0 = jetzt();
     function f() {
@@ -230,7 +248,8 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     var alt = S ? S.tok : 0;
     S = {
       tok: alt + 1, boden: null, vorschau: 'sand', reihen: {}, fang: {}, nacht: 0, maeuse: [], bestand: [],
-      gefangen: 0, laeuft: false, morgen: false, ende: 0, timer: null, autoTimer: null, nq: null, bodenGemalt: null
+      gefangen: 0, laeuft: false, morgen: false, ende: 0, timer: null, autoTimer: null, nq: null, bodenGemalt: null,
+      frei: 0, pause: false, rest: 0
     };
   }
 
@@ -387,7 +406,8 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   function malMaeuse() {
     var s = $('schicht');
     while (s.firstChild) s.removeChild(s.firstChild);
-    S.maeuse.forEach(function (m) { if (!m.gefangen) s.appendChild(knoten(m)); });
+    // Junge, die noch auf ihren Auftritt warten, zeichnet erst einblenden(); sonst stünden sie nach dem Drehen doppelt da.
+    S.maeuse.forEach(function (m) { if (!m.gefangen && !m.wartet) s.appendChild(knoten(m)); });
   }
   function abstandFrei(x, y, d, liste) {
     for (var i = 0; i < liste.length; i++) {
@@ -408,6 +428,20 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       }
       pos.push([x, y]);
       m.nx = x / W; m.ny = y / H; m.rot = Math.random() * 360;
+    });
+  }
+  // Nach dem Drehen des iPads liegen manche Mäuse enger: Nur die, deren Tippflächen sich jetzt überlappen, bekommen einen neuen Platz.
+  function entzerre() {
+    var rand = HIT + 4, min = 2 * HIT + 2, pos = [];
+    S.maeuse.forEach(function (m) {
+      if (m.gefangen || m.jung) return;
+      var x = Math.max(rand, Math.min(W - rand, m.nx * W)), y = Math.max(rand, Math.min(H - rand, m.ny * H));
+      for (var t = 0; t < 2000 && !abstandFrei(x, y, min, pos); t++) {
+        x = rand + Math.random() * (W - 2 * rand);
+        y = rand + Math.random() * (H - 2 * rand);
+      }
+      pos.push([x, y]);
+      m.nx = x / W; m.ny = y / H;
     });
   }
   function platziereNeben(j, eltern) {
@@ -438,6 +472,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       function () { if (g.parentNode) g.parentNode.removeChild(g); });
   }
   function einblenden(m) {
+    m.wartet = false;
     var g = knoten(m), ziel = L * 0.62;
     g.setAttribute('opacity', '0');
     $('schicht').appendChild(g);
@@ -472,7 +507,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     if (!S.laeuft) { $('k-zeit-text').textContent = CFG.auto && S.boden ? 'Automatik' : ''; $('k-balken').style.display = 'none'; }
   }
   function tick() {
-    if (!S.laeuft) return;
+    if (!S.laeuft || S.pause) return;
     var rest = Math.max(0, S.ende - Date.now());
     $('k-zeit-text').textContent = 'noch ' + Math.ceil(rest / 1000) + ' s';
     $('k-balken').style.display = 'block';
@@ -492,21 +527,22 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     S.fang[art] = [];
     if (!QUOTE[art]) QUOTE[art] = { hDa: 0, hGef: 0, bDa: 0, bGef: 0, lnH: 0, lnB: 0, naechte: 0 };
     if (S.bodenGemalt !== BOEDEN[art].boden) malBoden(BOEDEN[art].boden);
-    $('schirm').className = ''; $('morgen').className = '';
+    zeige('schirm', false); zeige('morgen', false);
     nachtStart();
   }
 
   function nachtStart() {
     S.nacht++; S.gefangen = 0; S.morgen = false;
-    $('morgen').className = '';
+    zeige('morgen', false);
     S.maeuse = S.bestand.map(function (f) { return { farbe: f, jung: false, gefangen: false }; });
     verteile(S.maeuse);
     malMaeuse();
     var z = zaehlen(S.bestand);
     S.nq = { hDa: z.h, bDa: z.b, hGef: 0, bGef: 0, auto: CFG.auto };
     $('nacht').className = 'an';
-    S.laeuft = true;
+    S.laeuft = true; S.pause = false;
     S.ende = Date.now() + CFG.zeit * 1000;
+    S.frei = Date.now() + 400;
     clearInterval(S.timer); S.timer = setInterval(tick, 150);
     kopf(); tick();
     hinweis(CFG.auto ? 'Nacht ' + S.nacht + ': Die Eule jagt.' : 'Nacht ' + S.nacht + ': Fang ' + CFG.fang + ' Mäuse.', 1600);
@@ -572,7 +608,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       }
       for (var i = 0; i < fehl; i++) {
         var e = ueber[zufall(ueber.length)];
-        var j = { farbe: e.farbe, jung: true, gefangen: false };
+        var j = { farbe: e.farbe, jung: true, gefangen: false, wartet: true };
         platziereNeben(j, e);
         S.maeuse.push(j);
         junge.push(j);
@@ -593,7 +629,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
 
   function punkt(farbe) { return '<span class="punkt" style="background:' + FELL[farbe] + '"></span>'; }
 
-  // f: gefangene Mäuse je Nacht; mit f bekommt die Tabelle die Spalten „in der Nacht gefangen“.
+  // f: gefangene Mäuse je Nacht; mit f bekommt die Tabelle die Spalten „von der Eule gefangen“.
   function tabelle(r, markiere, f) {
     var ph = punkt('hell') + 'hell', pb = punkt('braun') + 'braun';
     var s = '<table class="tab' + (f ? ' mit-fang' : '') + '"><thead>' + (f
@@ -622,9 +658,10 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       (S.boden === 'wanderung' ? '<p>Vergleiche mit deiner Hypothese.</p>'
         : S.boden === 'wald' ? '<p>Für das Festland trägst du nur Start und Ende auf dem Arbeitsblatt ein.</p>'
         : '<p>Trage die Zahlen in die Tabelle auf dem Arbeitsblatt ein.</p>') +
-      '<button class="knopf" data-los="weiter">' + (letzte ? 'Ergebnis ansehen' : 'Nächste Nacht') + '</button>';
-    $('morgen').className = 'an';
+      '<div class="fuss"><button class="knopf" data-los="weiter">' + (letzte ? 'Ergebnis ansehen' : 'Nächste Nacht') + '</button></div>';
+    zeige('morgen', true);
     $('morgen').scrollTop = 0;
+    fokus($('morgen'));
     sichern('morgen');
   }
 
@@ -662,10 +699,11 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
 
   // ---------- Bildschirme ----------
   function schirm(html) {
-    $('morgen').className = '';
+    zeige('morgen', false);
     $('schirm').innerHTML = html;
-    $('schirm').className = 'an scroll';
+    zeige('schirm', true);
     $('schirm').scrollTop = 0;
+    fokus($('schirm').firstChild);
   }
   var EULE_BILD = '<svg class="eule-bild" viewBox="0 0 100 100" width="96" height="96" aria-hidden="true">' +
     '<circle cx="86" cy="14" r="10" fill="#f3e9b5" stroke="#d9cf96" stroke-width="2"/>' +
@@ -782,6 +820,28 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     S.autoTimer = setInterval(autoFang, 600);
   }
 
+  // ---------- Pause, solange die Seite nicht zu sehen ist ----------
+  // Tab gewechselt, iPad gesperrt oder Hülle zugeklappt: Die Zeit der Nacht steht und läuft beim Zurückkommen weiter.
+  function pausiere() {
+    if (!S.laeuft || S.pause) return;
+    S.pause = true;
+    S.rest = Math.max(0, S.ende - Date.now());
+    clearInterval(S.timer); clearInterval(S.autoTimer);
+  }
+  function setzeFort() {
+    if (!S.pause) return;
+    S.pause = false;
+    if (!S.laeuft) return;
+    S.ende = Date.now() + S.rest;
+    S.frei = Date.now() + 400;
+    clearInterval(S.timer); S.timer = setInterval(tick, 150);
+    if (S.nq && S.nq.auto) autoStart();
+    tick();
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pausiere(); else setzeFort(); });
+  window.addEventListener('pagehide', pausiere);
+  window.addEventListener('pageshow', function () { if (!document.hidden) setzeFort(); });
+
   // ---------- Testrechnung (wie im Spiel, ohne Bild) ----------
   function simLauf(f, h0) { // f: Fangfaktor der getarnten Farbe, h0: Zahl der getarnten Mäuse zu Beginn
     var h = h0, b = N - h0, n, k;
@@ -890,23 +950,46 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   function lies(sp, schluessel) {
     try { return JSON.parse(sp.getItem(schluessel) || 'null'); } catch (e) { return null; }
   }
+  // Ein Spielstand zählt nur, wenn jede Zeile zwei Zahlen mit der Summe 30 hat; alles andere führt zum Neuanfang.
+  function reiheGueltig(r) {
+    return Array.isArray(r) && r.length > 0 && r.length <= CFG.naechte + 1 && r.every(function (z) {
+      return z && typeof z.h === 'number' && typeof z.b === 'number' && z.h >= 0 && z.b >= 0 && z.h + z.b === N;
+    });
+  }
+  function standGueltig(d) {
+    if (!d || d.adresse !== location.search || typeof d.ansicht !== 'string' || !d.reihen || typeof d.reihen !== 'object') return false;
+    if (d.fang && typeof d.fang !== 'object') return false;
+    return Object.keys(d.reihen).every(function (a) {
+      var f = d.fang ? d.fang[a] : null;
+      return BOEDEN[a] && reiheGueltig(d.reihen[a]) && (!f || (Array.isArray(f) && f.every(function (z) {
+        return z && typeof z.h === 'number' && typeof z.b === 'number';
+      })));
+    });
+  }
   function wiederherstellen() {
+    try { return stelleHer(); } catch (e) { return false; }
+  }
+  function stelleHer() {
     var sp = speicher();
     if (!sp) return false;
     var q = lies(sp, SPEICHER_Q), d = lies(sp, SPEICHER);
-    if (q && q.adresse === location.search && q.quote) QUOTE = q.quote;
-    if (!d || d.adresse !== location.search || !d.ansicht || !d.reihen) return false;
+    if (q && q.adresse === location.search && q.quote && typeof q.quote === 'object') QUOTE = q.quote;
+    if (!standGueltig(d)) return false;
     S.reihen = d.reihen; S.fang = d.fang || {};
+    Object.keys(S.reihen).forEach(function (a) { if (!S.fang[a]) S.fang[a] = []; });
     GESPIELT = Object.keys(S.reihen).length ? 1 : 0;
     var art = d.art;
     if (d.ansicht === 'intro' && BOEDEN[art]) { intro(art); return true; }
-    if (d.ansicht === 'vergleich') { malBoden('wald'); vergleich(); return true; }
-    if (!BOEDEN[art] || !S.reihen[art]) return false;
-    if (!S.fang[art]) S.fang[art] = [];
+    if (d.ansicht === 'vergleich') {
+      if (!S.reihen.sand || S.reihen.sand.length < 2) return false;
+      malBoden('wald'); vergleich(); return true;
+    }
+    if (!BOEDEN[art] || !S.reihen[art] || S.reihen[art].length < 2) return false;
     S.boden = art; S.vorschau = art;
     malBoden(BOEDEN[art].boden);
     if (d.ansicht === 'ergebnis') { ergebnis(); return true; }
-    if (d.ansicht === 'morgen' && d.nacht > 0 && d.bestand && d.bestand.length) {
+    if (d.ansicht === 'morgen' && d.nacht === S.reihen[art].length - 1 && Array.isArray(d.bestand) && d.bestand.length === N &&
+        zaehlen(d.bestand).h === S.reihen[art][d.nacht].h) {
       S.nacht = d.nacht; S.bestand = d.bestand; S.morgen = true; S.laeuft = false;
       var f = S.fang[art][S.nacht - 1] || { h: 0, b: 0 };
       S.gefangen = f.h + f.b;
@@ -920,10 +1003,14 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   }
 
   // ---------- Neustart ----------
-  var neuZeit = 0;
+  // Zwei getrennte Tipps: Der zweite zählt erst nach 0,6 s (ein versehentlicher Doppeltipp löscht nichts) und bis 4 s.
+  var neuZeit = 0, neuTimer = null;
   function neuKnopf(knopf) {
-    if (Date.now() - neuZeit < 3000) {
+    var seit = Date.now() - neuZeit;
+    if (seit < 600) return;
+    if (seit < 4000) {
       neuZeit = 0;
+      clearTimeout(neuTimer);
       clearInterval(S.timer); clearInterval(S.autoTimer);
       $('neu').textContent = 'Neu starten';
       vergessen();
@@ -932,9 +1019,9 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
       return;
     }
     neuZeit = Date.now();
-    var alt = knopf.textContent;
     knopf.textContent = 'Sicher? Noch einmal tippen';
-    setTimeout(function () { if (knopf.textContent !== alt) knopf.textContent = alt; }, 3000);
+    clearTimeout(neuTimer);
+    neuTimer = setTimeout(function () { knopf.textContent = 'Neu starten'; }, 4000);
   }
 
   // ---------- Ereignisse ----------
@@ -957,34 +1044,39 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   $('maeuse').addEventListener(EV, function (e) {
     if (!S.laeuft || CFG.auto) return;
     e.preventDefault();
-    if (Date.now() < sperreBis) return;
+    // Die ersten 0,4 s einer Nacht zählen nicht: Der zweite Tipp eines Doppeltipps auf „Nächste Nacht“ landet sonst im Feld.
+    if (Date.now() < sperreBis || Date.now() < S.frei) return;
     var t = e.target;
     while (t && t !== this && !(t.getAttribute && t.getAttribute('class') === 'maus')) t = t.parentNode;
     if (t && t._maus) fange(t._maus);
     else { sperreBis = Date.now() + SPERRE; daneben(e); }
   });
+  var klickBis = 0;
   document.addEventListener('click', function (e) {
     var t = e.target;
     while (t && t !== document && !(t.getAttribute && t.getAttribute('data-los'))) t = t.parentNode;
     if (!t || t === document) return;
     var los = t.getAttribute('data-los');
-    if (los === 'neu') neuKnopf(t);
-    else if (los === 'spiel-sand') bodenStart('sand');
+    if (los === 'neu') { neuKnopf(t); return; }
+    // Doppeltipp: Der zweite Tipp trifft sonst einen Knopf der nächsten Karte.
+    if (Date.now() < klickBis) return;
+    klickBis = Date.now() + 350;
+    if (los === 'spiel-sand') bodenStart('sand');
     else if (los === 'spiel-wald') bodenStart('wald');
     else if (los === 'spiel-wanderung') bodenStart('wanderung');
     else if (los === 'intro-wald') intro('wald');
     else if (los === 'intro-wanderung') intro('wanderung');
     else if (los === 'vergleich') vergleich();
-    else if (los === 'weiter') { if (S.nacht >= CFG.naechte) ergebnis(); else nachtStart(); }
+    else if (los === 'weiter') { if (!S.morgen) return; if (S.nacht >= CFG.naechte) ergebnis(); else nachtStart(); }
     else if (los === 'lk-auto') { if (S.laeuft) { S.nq.auto = true; autoStart(); } }
     else if (los === 'lk-test') lkTestAnzeigen();
-    else if (los === 'lk-zu') $('lk-panel').className = 'scroll';
+    else if (los === 'lk-zu') zeige('lk-panel', false);
   });
   if (CFG.lehrkraft) {
     $('lk').hidden = false;
     $('lk').addEventListener('click', function () {
       var p = $('lk-panel');
-      p.className = p.className.indexOf('an') < 0 ? 'scroll an' : 'scroll';
+      zeige('lk-panel', p.className.indexOf('an') < 0);
       lkAuffrischen();
     });
   }
@@ -1004,6 +1096,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     rz = setTimeout(function () {
       masse();
       if (S.bodenGemalt) { var b = S.bodenGemalt; S.bodenGemalt = null; malBoden(b); }
+      if (S.laeuft) entzerre();
       malMaeuse();
     }, 150);
   });
@@ -1012,7 +1105,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   $('defs').innerHTML = mausGruppe('m-hell', FELL.hell) + mausGruppe('m-braun', FELL.braun);
   neuerZustand();
   masse();
-  if (!wiederherstellen()) { neuerZustand(); intro('sand'); }
+  if (!wiederherstellen()) { vergessen(); neuerZustand(); intro('sand'); }
 })();
 </script>
 </body>
