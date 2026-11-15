@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="referrer" content="no-referrer">
+<title>Die Eule und die Strandmäuse</title>
+<!--
+  Simulationsspiel zur natürlichen Auslese an der Strandmaus, Klasse 8, UB 2 Biologie am 2026-11-19.
+  Eine Datei, keine Nachladung aus dem Netz, keine Cookies, kein Ton. Gespeichert wird nur der Spielstand
+  (Spielzahlen, nichts Personenbezogenes) im sessionStorage des Tabs: Er übersteht Neuladen und Zurückwischen
+  und endet mit dem Tab oder mit „Neu starten“.
+  Einstellungen über die Adresse, alle optional:
+    start=20        Anteil heller Mäuse zu Beginn auf Sandinsel und Festland in Prozent
+    wanderung=80    Anteil heller Mäuse zu Beginn der Wanderung in Prozent
+    naechte=5       Zahl der Nächte je Boden
+    fang=10         Mäuse, die die Eule je Nacht fängt
+    zeit=20         Sekunden je Nacht
+    tarnung=0.45    0 bis 1: wie nah das Fell an der Bodenfarbe liegt (Feinabstimmung für den Probelauf)
+    fangfaktor=0.2  Automatik und Testrechnung: Fangchance einer getarnten Maus im Verhältnis zu einer auffälligen
+    auto=1          die Eule jagt von selbst (Beamer, Lernende, die nicht tippen können)
+    lehrkraft=1     Knopf „Lehrkraft“: gemessene Fangquote, Automatik für eine Nacht, Testrechnung
+-->
+<style>
+:root{
+  --nacht:#1d2440; --text:#1f2328; --text2:#4a4f57; --linie:#c9ccd3;
+  --knopf:#2b3a7a; --sand:#a8741c; --wald:#5a3d22; --wander:#2f6f8f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--nacht);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-text-size-adjust:100%;overscroll-behavior:none}
+body{overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#app{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column}
+header{flex:0 0 auto;min-height:60px;padding:env(safe-area-inset-top) 12px 0 12px;background:var(--nacht);color:#fff;
+  display:flex;align-items:center;justify-content:space-between;font-size:19px}
+header>div{margin-right:10px}
+#k-ort{font-weight:700;white-space:nowrap}
+#k-fang{white-space:nowrap}
+#k-zeit{min-width:110px;white-space:nowrap}
+#k-balken{height:6px;background:rgba(255,255,255,.25);border-radius:3px;margin-top:4px;overflow:hidden;display:none}
+#k-balken div{height:100%;width:100%;background:#f3e9b5}
+.kopf-rechts{display:flex;align-items:center;margin-right:0}
+button{font-family:inherit}
+.klein{min-height:44px;padding:6px 14px;font-size:16px;border-radius:10px;border:2px solid rgba(255,255,255,.7);
+  background:transparent;color:#fff;margin-left:8px}
+#feld{position:relative;flex:1 1 auto;overflow:hidden;touch-action:none;background:#555}
+#boden{position:absolute;top:0;left:0}
+#maeuse{position:absolute;top:0;left:0;display:block}
+#nacht{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;opacity:0;transition:opacity 1s;
+  background:radial-gradient(ellipse at 25% 10%,rgba(40,50,90,.08) 0%,rgba(12,18,48,.30) 60%,rgba(8,12,36,.40) 100%)}
+#nacht.an{opacity:1}
+#nacht.morgen{opacity:.2}
+#hinweis{position:absolute;left:50%;top:14px;-webkit-transform:translateX(-50%);transform:translateX(-50%);
+  max-width:90%;background:rgba(20,24,48,.9);color:#fff;font-size:20px;line-height:1.3;padding:10px 18px;
+  border-radius:12px;opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
+#hinweis.an{opacity:1}
+#morgen{position:absolute;right:12px;top:12px;bottom:12px;width:330px;background:rgba(255,255,255,.97);
+  border-radius:14px;padding:16px 18px;box-shadow:0 4px 18px rgba(0,0,0,.35);overflow-y:auto;display:none;
+  -webkit-overflow-scrolling:touch}
+#morgen.an{display:block}
+@media (orientation:portrait){
+  #morgen{left:12px;right:12px;top:auto;width:auto;max-height:60%}
+}
+.klein{white-space:nowrap}
+@media (max-width:860px){
+  header{font-size:16px;padding-left:8px;padding-right:8px}
+  header>div{margin-right:6px}
+  #k-zeit{min-width:84px}
+  .klein{font-size:14px;padding:6px 9px;margin-left:5px}
+}
+#schirm{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(15,20,40,.35);display:none;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 14px}
+#schirm.an{display:block}
+.karte{background:#fff;border-radius:16px;padding:22px 24px;max-width:560px;margin:10px auto;
+  box-shadow:0 6px 24px rgba(0,0,0,.35);font-size:19px;line-height:1.4}
+.karte.breit{max-width:900px}
+h1{font-size:27px;margin:0 0 12px 0;line-height:1.2}
+h2{font-size:23px;margin:0 0 8px 0}
+p{margin:8px 0}
+.gross{font-size:22px}
+.riesig{font-size:40px;line-height:1.1}
+ol.schritte{padding-left:26px;margin:10px 0}
+ol.schritte li{margin:6px 0}
+.knopf{display:inline-block;min-height:54px;padding:12px 24px;font-size:21px;font-weight:600;border:2px solid var(--knopf);
+  border-radius:12px;background:var(--knopf);color:#fff;margin:10px 10px 0 0}
+.knopf.zweit{background:#fff;color:var(--knopf)}
+.tab{border-collapse:collapse;font-size:19px;margin:8px 0}
+.tab th,.tab td{border:1px solid var(--linie);padding:5px 12px;text-align:center}
+.tab th{background:#f1f2f5}
+.tab tr.neu td{background:#fff1c2;font-weight:700}
+.tab .trenn{border-left:3px solid #9aa0aa}
+.tab th[colspan]{font-size:16px;font-weight:600;white-space:normal;max-width:9em}
+.tab th,.tab td{white-space:nowrap}
+.mit-fang th,.mit-fang td{padding:5px 8px}
+.spalten{display:flex;flex-wrap:wrap;align-items:flex-start}
+.spalten>div{flex:1 1 300px;margin:0 12px 8px 0}
+.spalten>div.tab-spalte{flex:0 0 auto}
+.vergleich .tab{font-size:16px}
+.vergleich .tab th,.vergleich .tab td{padding:3px 8px}
+.diagramm{width:100%;height:auto;display:block}
+.punkt{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid #555;vertical-align:-2px;margin-right:4px}
+.eule-bild{float:right;margin:0 0 6px 12px}
+.hinweis-klein{font-size:16px;color:var(--text2)}
+#lk-panel{position:absolute;left:10px;bottom:10px;width:540px;max-width:94%;max-height:75%;overflow-y:auto;
+  background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 4px 18px rgba(0,0,0,.4);font-size:15px;
+  line-height:1.4;display:none;z-index:5;-webkit-overflow-scrolling:touch}
+#lk-panel.an{display:block}
+#lk-panel h3{margin:0 0 6px 0;font-size:17px}
+#lk-panel .knopf{font-size:16px;min-height:44px;padding:8px 14px}
+#lk-panel table{border-collapse:collapse;margin:4px 0}
+#lk-panel td,#lk-panel th{border:1px solid var(--linie);padding:2px 6px;text-align:center}
+code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit-user-select:text;user-select:text}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="k-ort">Strandmäuse</div>
+    <div id="k-fang"></div>
+    <div id="k-zeit"><span id="k-zeit-text"></span><div id="k-balken"><div></div></div></div>
+    <div class="kopf-rechts">
+      <button id="lk" class="klein" hidden>Lehrkraft</button>
+      <button id="neu" class="klein" data-los="neu">Neu starten</button>
+    </div>
+  </header>
+  <div id="feld">
+    <canvas id="boden"></canvas>
+    <svg id="maeuse" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+      <defs id="defs"></defs>
+      <g id="schicht"></g>
+      <g id="effekte"></g>
+    </svg>
+    <div id="nacht"></div>
+    <div id="hinweis"></div>
+    <div id="morgen" class="scroll"></div>
+    <div id="schirm" class="scroll"></div>
+    <div id="lk-panel" class="scroll"></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Einstellungen ----------
+  var Q = new URLSearchParams(location.search);
+  function zahl(name, def, min, max) {
+    var v = parseFloat((Q.get(name) || '').replace(',', '.'));
+    if (isNaN(v)) return def;
+    return Math.min(max, Math.max(min, v));
+  }
+  var N = 30;
+  var CFG = {
+    start: zahl('start', 20, 0, 100),
+    wanderung: zahl('wanderung', 80, 0, 100),
+    naechte: Math.round(zahl('naechte', 5, 1, 10)),
+    fang: Math.round(zahl('fang', 10, 1, 20)),
+    zeit: Math.round(zahl('zeit', 20, 5, 120)),
+    tarnung: zahl('tarnung', 0.45, 0, 1),
+    fangfaktor: zahl('fangfaktor', 0.2, 0, 1),
+    auto: Q.get('auto') === '1',
+    lehrkraft: Q.get('lehrkraft') === '1'
+  };
+
+  // ---------- Farben ----------
+  function hexRgb(h) { h = h.replace('#', ''); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }); }
+  function rgbHex(c) {
+    return '#' + c.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }).join('');
+  }
+  function mix(a, b, t) { var x = hexRgb(a), y = hexRgb(b); return rgbHex([0, 1, 2].map(function (i) { return x[i] + (y[i] - x[i]) * t; })); }
+
+  var SAND = '#ebe2cd', WALD = '#4e3a28';
+  // Kein Tier ändert je seine Farbe: Die beiden Fellfarben stehen für das ganze Spiel fest.
+  // Die braune Maus liegt auf dem dunklen Boden des Festlands schwächer an der Bodenfarbe, sonst ist sie im Halbdunkel kaum zu finden.
+  var FELL = { hell: mix('#d2bd96', SAND, CFG.tarnung), braun: mix('#8c6540', WALD, CFG.tarnung * 0.6) };
+
+  var BOEDEN = {
+    // Linienfarbe für alle Böden gleich: Die Linie zeigt immer den Anteil heller Mäuse, nicht die Bodenfarbe.
+    sand: { name: 'Sandinsel', boden: 'sand', farbe: '#2b3a7a', anteil: function () { return CFG.start; } },
+    wald: { name: 'Festland', boden: 'wald', farbe: '#2b3a7a', anteil: function () { return CFG.start; } },
+    wanderung: { name: 'Wanderung', boden: 'wald', farbe: '#2b3a7a', anteil: function () { return CFG.wanderung; } }
+  };
+  function startHell(art) { return Math.round(N * BOEDEN[art].anteil() / 100); }
+
+  // ---------- Hilfen ----------
+  var NS = 'http://www.w3.org/2000/svg', XL = 'http://www.w3.org/1999/xlink';
+  function $(id) { return document.getElementById(id); }
+  function zufall(n) { return Math.floor(Math.random() * n); }
+  function jetzt() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function animiere(dauer, schritt, fertig) {
+    var t0 = jetzt();
+    function f() {
+      var k = Math.max(0, Math.min(1, (jetzt() - t0) / dauer));
+      schritt(k);
+      if (k < 1) requestAnimationFrame(f); else if (fertig) fertig();
+    }
+    requestAnimationFrame(f);
+  }
+  function zaehlen(liste) {
+    var h = 0;
+    liste.forEach(function (f) { if (f === 'hell') h++; });
+    return { h: h, b: liste.length - h };
+  }
+  function prozent(z) { return Math.round(z.h / (z.h + z.b) * 100); }
+  function gen(n) { return n === 1 ? '1 Generation' : n + ' Generationen'; }
+  function klasse(h) {
+    var p = h / N * 100;
+    if (p < 25) return 'unter 25 %';
+    if (p <= 50) return '25 bis 50 %';
+    if (p <= 75) return 'über 50 bis 75 %';
+    return 'über 75 %';
+  }
+
+  // ---------- Zustand ----------
+  var W = 0, H = 0, L = 30, HIT = 25;
+  var S;
+  var QUOTE = {}; // gemessene Fangquote, bleibt beim Neustart erhalten
+  var GESPIELT = 0; // gespielte Nächte seit dem Laden: ab der zweiten Nacht kürzere Pausen
+  function neuerZustand() {
+    var alt = S ? S.tok : 0;
+    S = {
+      tok: alt + 1, boden: null, vorschau: 'sand', reihen: {}, fang: {}, nacht: 0, maeuse: [], bestand: [],
+      gefangen: 0, laeuft: false, morgen: false, ende: 0, timer: null, autoTimer: null, nq: null, bodenGemalt: null
+    };
+  }
+
+  // ---------- Maße ----------
+  function masse() {
+    var f = $('feld');
+    W = f.clientWidth; H = f.clientHeight;
+    L = Math.max(26, Math.min(38, Math.round(Math.min(W, H) * 0.045)));
+    HIT = Math.max(24, Math.round(L * 0.8)); // Tippfläche mindestens 48 px Durchmesser
+    var svg = $('maeuse');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W); svg.setAttribute('height', H);
+  }
+
+  // ---------- Boden ----------
+  function malBoden(art) {
+    var c = $('boden'), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    c.style.width = W + 'px'; c.style.height = H + 'px';
+    var g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var r = rng(art === 'sand' ? 11 : 23), i, n, x, y, rad, grd, s, a, rx, ry, farben;
+    function wahl(l) { return l[Math.floor(r() * l.length)]; }
+    if (art === 'sand') {
+      g.fillStyle = SAND; g.fillRect(0, 0, W, H);
+      for (i = 0; i < 40; i++) {
+        x = r() * W; y = r() * H; rad = 60 + r() * 160;
+        grd = g.createRadialGradient(x, y, 0, x, y, rad);
+        grd.addColorStop(0, r() < 0.5 ? 'rgba(255,252,244,0.35)' : 'rgba(214,200,170,0.28)');
+        grd.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = grd; g.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
+      }
+      g.lineCap = 'round';
+      n = Math.round(W * H / 9000);
+      for (i = 0; i < n; i++) {
+        x = r() * W; y = r() * H; s = 40 + r() * 120;
+        g.strokeStyle = 'rgba(190,172,135,' + (0.12 + r() * 0.12).toFixed(2) + ')';
+        g.lineWidth = 1.5 + r() * 2.5;
+        g.beginPath(); g.moveTo(x, y);
+        g.bezierCurveTo(x + s * 0.3, y - 6 + r() * 12, x + s * 0.7, y - 6 + r() * 12, x + s, y + (r() - 0.5) * 10);
+        g.stroke();
+      }
+      farben = ['#f8f3e8', '#e0d3b8', '#efe6d3', '#d6c7a8', '#fbf8f1', '#e8dcc3'];
+      n = Math.round(W * H / 22);
+      for (i = 0; i < n; i++) {
+        g.fillStyle = wahl(farben); g.globalAlpha = 0.5 + r() * 0.5; s = 0.8 + r() * 1.6;
+        g.fillRect(r() * W, r() * H, s, s);
+      }
+      g.globalAlpha = 1;
+      // helle Steinchen und Muschelreste in Mausgröße
+      n = Math.round(W * H / 9000);
+      for (i = 0; i < n; i++) {
+        x = r() * W; y = r() * H; a = r() * Math.PI; rx = 5 + r() * 11; ry = rx * (0.4 + r() * 0.4);
+        g.save(); g.translate(x, y); g.rotate(a);
+        g.fillStyle = mix(FELL.hell, SAND, r() * 0.6);
+        g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(150,130,100,0.25)'; g.lineWidth = 1; g.stroke();
+        g.restore();
+      }
+      n = Math.round(W * H / 5000);
+      for (i = 0; i < n; i++) {
+        g.fillStyle = 'rgba(120,100,70,' + (0.25 + r() * 0.3).toFixed(2) + ')';
+        g.beginPath(); g.arc(r() * W, r() * H, 0.8 + r() * 1.7, 0, Math.PI * 2); g.fill();
+      }
+    } else {
+      g.fillStyle = WALD; g.fillRect(0, 0, W, H);
+      for (i = 0; i < 40; i++) {
+        x = r() * W; y = r() * H; rad = 60 + r() * 160;
+        grd = g.createRadialGradient(x, y, 0, x, y, rad);
+        grd.addColorStop(0, r() < 0.5 ? 'rgba(30,20,12,0.30)' : 'rgba(120,95,65,0.20)');
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = grd; g.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
+      }
+      farben = ['#3f2f20', '#5f4831', '#6e5639', '#4a3726', '#7a6143'];
+      n = Math.round(W * H / 40);
+      for (i = 0; i < n; i++) {
+        g.fillStyle = wahl(farben); g.globalAlpha = 0.5 + r() * 0.5; s = 0.8 + r() * 1.8;
+        g.fillRect(r() * W, r() * H, s, s);
+      }
+      g.globalAlpha = 1;
+      var laub = ['#6b4e32', '#7a5a3a', '#5c432c', '#8a6a44', '#4a3524', '#6f5a3c', '#80603d'];
+      n = Math.round(W * H / 2200);
+      for (i = 0; i < n; i++) {
+        x = r() * W; y = r() * H; a = r() * Math.PI * 2; s = 10 + r() * 26; var br = s * (0.3 + r() * 0.2);
+        g.save(); g.translate(x, y); g.rotate(a);
+        g.fillStyle = wahl(laub); g.globalAlpha = 0.75 + r() * 0.25;
+        g.beginPath(); g.moveTo(-s / 2, 0);
+        g.quadraticCurveTo(0, -br, s / 2, 0); g.quadraticCurveTo(0, br, -s / 2, 0); g.fill();
+        g.globalAlpha = 0.5; g.strokeStyle = 'rgba(40,28,18,0.6)'; g.lineWidth = 0.8;
+        g.beginPath(); g.moveTo(-s / 2, 0); g.lineTo(s / 2, 0); g.stroke();
+        g.restore();
+      }
+      g.globalAlpha = 1;
+      // Erdklümpchen in Mausgröße
+      n = Math.round(W * H / 12000);
+      for (i = 0; i < n; i++) {
+        x = r() * W; y = r() * H; a = r() * Math.PI; rx = 6 + r() * 10; ry = rx * (0.45 + r() * 0.35);
+        g.save(); g.translate(x, y); g.rotate(a);
+        g.fillStyle = mix(FELL.braun, WALD, r() * 0.5);
+        g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+      g.lineCap = 'round';
+      n = Math.round(W * H / 30000);
+      for (i = 0; i < n; i++) {
+        x = r() * W; y = r() * H; a = r() * Math.PI * 2; s = 30 + r() * 70;
+        g.strokeStyle = 'rgba(46,33,23,0.85)'; g.lineWidth = 1.5 + r() * 2;
+        g.beginPath(); g.moveTo(x, y);
+        g.quadraticCurveTo(x + Math.cos(a) * s / 2 + (r() - 0.5) * 12, y + Math.sin(a) * s / 2 + (r() - 0.5) * 12,
+          x + Math.cos(a) * s, y + Math.sin(a) * s);
+        g.stroke();
+      }
+    }
+    S.bodenGemalt = art;
+  }
+
+  // ---------- Mäuse ----------
+  function mausGruppe(id, fell) {
+    var ruecken = mix(fell, '#000000', 0.12), auge = mix(fell, '#000000', 0.45),
+      ohr = mix(fell, '#d9a3a0', 0.25), schwanz = mix(fell, '#000000', 0.07);
+    return '<g id="' + id + '">' +
+      '<path d="M-0.46,0 C-0.72,-0.14 -0.95,0.2 -1.22,0.06" fill="none" stroke="' + schwanz + '" stroke-width="0.055" stroke-linecap="round"/>' +
+      '<circle cx="0.22" cy="-0.15" r="0.09" fill="' + ohr + '"/>' +
+      '<circle cx="0.22" cy="0.15" r="0.09" fill="' + ohr + '"/>' +
+      '<ellipse cx="-0.08" cy="0" rx="0.42" ry="0.245" fill="' + fell + '"/>' +
+      '<ellipse cx="-0.12" cy="0" rx="0.3" ry="0.11" fill="' + ruecken + '" opacity="0.6"/>' +
+      '<ellipse cx="0.3" cy="0" rx="0.2" ry="0.165" fill="' + fell + '"/>' +
+      '<ellipse cx="0.47" cy="0" rx="0.085" ry="0.07" fill="' + fell + '"/>' +
+      '<circle cx="0.37" cy="-0.075" r="0.024" fill="' + auge + '"/>' +
+      '<circle cx="0.37" cy="0.075" r="0.024" fill="' + auge + '"/>' +
+      '</g>';
+  }
+  var EULE = 'M0,-12 C4,-12 6,-8 7,-5 C14,-7 24,-6 32,-1 C24,0 16,3 9,6 C7,10 4,14 0,16 C-4,14 -7,10 -9,6 ' +
+    'C-16,3 -24,0 -32,-1 C-24,-6 -14,-7 -7,-5 C-6,-8 -4,-12 0,-12 Z';
+
+  function knoten(m) {
+    var g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'maus');
+    g.setAttribute('transform', 'translate(' + (m.nx * W).toFixed(1) + ' ' + (m.ny * H).toFixed(1) + ') rotate(' + m.rot.toFixed(0) + ')');
+    var u = document.createElementNS(NS, 'use');
+    u.setAttribute('href', '#m-' + m.farbe);
+    u.setAttributeNS(XL, 'xlink:href', '#m-' + m.farbe);
+    u.setAttribute('transform', 'scale(' + (L * (m.jung ? 0.62 : 1)).toFixed(2) + ')');
+    g.appendChild(u);
+    if (!m.jung) {
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', (-0.08 * L).toFixed(1)); c.setAttribute('cy', '0'); c.setAttribute('r', HIT);
+      c.setAttribute('fill', '#000'); c.setAttribute('fill-opacity', '0'); c.setAttribute('pointer-events', 'all');
+      g.appendChild(c);
+    }
+    g._maus = m; m.g = g; m.u = u;
+    return g;
+  }
+  function malMaeuse() {
+    var s = $('schicht');
+    while (s.firstChild) s.removeChild(s.firstChild);
+    S.maeuse.forEach(function (m) { if (!m.gefangen) s.appendChild(knoten(m)); });
+  }
+  function abstandFrei(x, y, d, liste) {
+    for (var i = 0; i < liste.length; i++) {
+      var dx = liste[i][0] - x, dy = liste[i][1] - y;
+      if (dx * dx + dy * dy < d * d) return false;
+    }
+    return true;
+  }
+  function verteile(liste) {
+    var rand = HIT + 4, min = 2 * HIT + 2, pos = [];
+    liste.forEach(function (m) {
+      var x = 0, y = 0, d = min, ok = false;
+      for (var t = 0; t < 3000 && !ok; t++) {
+        if (t === 1500) d = min * 0.8;
+        x = rand + Math.random() * (W - 2 * rand);
+        y = rand + Math.random() * (H - 2 * rand);
+        ok = abstandFrei(x, y, d, pos);
+      }
+      pos.push([x, y]);
+      m.nx = x / W; m.ny = y / H; m.rot = Math.random() * 360;
+    });
+  }
+  function platziereNeben(j, eltern) {
+    var andere = S.maeuse.filter(function (m) { return !m.gefangen; }).map(function (m) { return [m.nx * W, m.ny * H]; });
+    var ex = eltern.nx * W, ey = eltern.ny * H, x = ex, y = ey;
+    for (var t = 0; t < 16; t++) {
+      var w = Math.random() * Math.PI * 2, d = L * (0.9 + Math.random() * 0.5);
+      x = Math.max(L, Math.min(W - L, ex + Math.cos(w) * d));
+      y = Math.max(L, Math.min(H - L, ey + Math.sin(w) * d));
+      if (abstandFrei(x, y, L * 0.75, andere)) break;
+    }
+    j.nx = x / W; j.ny = y / H; j.rot = Math.random() * 360;
+  }
+
+  // ---------- Effekte ----------
+  function eulenSchatten(x, y) {
+    var p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', EULE); p.setAttribute('fill', '#0b0d1e');
+    $('effekte').appendChild(p);
+    animiere(380, function (k) {
+      var s = L * (2.4 - 1.2 * k) / 30;
+      p.setAttribute('transform', 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') scale(' + s.toFixed(3) + ')');
+      p.setAttribute('opacity', (0.55 * (1 - k)).toFixed(3));
+    }, function () { if (p.parentNode) p.parentNode.removeChild(p); });
+  }
+  function ausblenden(g) {
+    animiere(300, function (k) { g.setAttribute('opacity', (1 - k).toFixed(3)); },
+      function () { if (g.parentNode) g.parentNode.removeChild(g); });
+  }
+  function einblenden(m) {
+    var g = knoten(m), ziel = L * 0.62;
+    g.setAttribute('opacity', '0');
+    $('schicht').appendChild(g);
+    var x = m.nx * W, y = m.ny * H;
+    var ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('cx', x.toFixed(1)); ring.setAttribute('cy', y.toFixed(1));
+    ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#ffd24a'); ring.setAttribute('stroke-width', '3');
+    $('effekte').appendChild(ring);
+    animiere(650, function (k) {
+      var kk = Math.min(1, k * 1.8);
+      m.u.setAttribute('transform', 'scale(' + (ziel * (0.3 + 0.7 * kk)).toFixed(2) + ')');
+      g.setAttribute('opacity', kk.toFixed(3));
+      ring.setAttribute('r', (L * (0.4 + 0.9 * k)).toFixed(1));
+      ring.setAttribute('opacity', (0.9 * (1 - k)).toFixed(3));
+    }, function () { if (ring.parentNode) ring.parentNode.removeChild(ring); });
+  }
+  var hinweisTimer = null;
+  function hinweis(text, dauer) {
+    var h = $('hinweis');
+    h.textContent = text; h.className = 'an';
+    clearTimeout(hinweisTimer);
+    hinweisTimer = setTimeout(function () { h.className = ''; }, dauer || 2000);
+  }
+
+  // ---------- Kopfzeile ----------
+  function kopf() {
+    var art = S.boden || S.vorschau;
+    var ort = art ? BOEDEN[art].name : 'Vergleich';
+    if (S.boden && S.nacht) ort += ' · Nacht ' + S.nacht + ' von ' + CFG.naechte;
+    $('k-ort').textContent = ort;
+    $('k-fang').textContent = (S.laeuft || S.morgen) ? 'gefangen: ' + S.gefangen + ' von ' + CFG.fang : '';
+    if (!S.laeuft) { $('k-zeit-text').textContent = CFG.auto && S.boden ? 'Automatik' : ''; $('k-balken').style.display = 'none'; }
+  }
+  function tick() {
+    if (!S.laeuft) return;
+    var rest = Math.max(0, S.ende - Date.now());
+    $('k-zeit-text').textContent = 'noch ' + Math.ceil(rest / 1000) + ' s';
+    $('k-balken').style.display = 'block';
+    $('k-balken').firstChild.style.width = (rest / (CFG.zeit * 1000) * 100).toFixed(1) + '%';
+    if (rest <= 0) nachtEnde();
+  }
+
+  // ---------- Spielablauf ----------
+  function getarnt(farbe) { return BOEDEN[S.boden].boden === 'sand' ? farbe === 'hell' : farbe === 'braun'; }
+
+  function bodenStart(art) {
+    S.boden = art; S.vorschau = art; S.nacht = 0;
+    var h = startHell(art), liste = [];
+    for (var i = 0; i < N; i++) liste.push(i < h ? 'hell' : 'braun');
+    S.bestand = liste;
+    S.reihen[art] = [zaehlen(liste)];
+    S.fang[art] = [];
+    if (!QUOTE[art]) QUOTE[art] = { hDa: 0, hGef: 0, bDa: 0, bGef: 0, lnH: 0, lnB: 0, naechte: 0 };
+    if (S.bodenGemalt !== BOEDEN[art].boden) malBoden(BOEDEN[art].boden);
+    $('schirm').className = ''; $('morgen').className = '';
+    nachtStart();
+  }
+
+  function nachtStart() {
+    S.nacht++; S.gefangen = 0; S.morgen = false;
+    $('morgen').className = '';
+    S.maeuse = S.bestand.map(function (f) { return { farbe: f, jung: false, gefangen: false }; });
+    verteile(S.maeuse);
+    malMaeuse();
+    var z = zaehlen(S.bestand);
+    S.nq = { hDa: z.h, bDa: z.b, hGef: 0, bGef: 0, auto: CFG.auto };
+    $('nacht').className = 'an';
+    S.laeuft = true;
+    S.ende = Date.now() + CFG.zeit * 1000;
+    clearInterval(S.timer); S.timer = setInterval(tick, 150);
+    kopf(); tick();
+    hinweis(CFG.auto ? 'Nacht ' + S.nacht + ': Die Eule jagt.' : 'Nacht ' + S.nacht + ': Fang ' + CFG.fang + ' Mäuse.', 1600);
+    if (CFG.auto) autoStart();
+    lkAuffrischen();
+  }
+
+  function fange(m) {
+    if (!S.laeuft || m.gefangen || m.jung) return;
+    m.gefangen = true; S.gefangen++;
+    if (m.farbe === 'hell') S.nq.hGef++; else S.nq.bGef++;
+    var x = m.nx * W, y = m.ny * H;
+    eulenSchatten(x, y);
+    ausblenden(m.g);
+    kopf();
+    var frei = S.maeuse.some(function (k) { return !k.gefangen; });
+    if (S.gefangen >= CFG.fang || !frei) {
+      S.laeuft = false;
+      var tok = S.tok;
+      setTimeout(function () { if (tok === S.tok) nachtEnde(); }, 300);
+    }
+  }
+
+  function nachtEnde() {
+    if (S.morgen) return;
+    S.morgen = true; S.laeuft = false;
+    clearInterval(S.timer); clearInterval(S.autoTimer);
+    var nq = S.nq;
+    if (!nq.auto) {
+      var q = QUOTE[S.boden];
+      q.hDa += nq.hDa; q.bDa += nq.bDa; q.hGef += nq.hGef; q.bGef += nq.bGef;
+      // Manly-Index für Fang ohne Nachschub: je Nacht der Logarithmus des überlebenden Anteils, +0,5 gegen ln 0
+      if (nq.hDa > 0 && nq.bDa > 0) {
+        q.lnH += Math.log((nq.hDa - nq.hGef + 0.5) / (nq.hDa + 0.5));
+        q.lnB += Math.log((nq.bDa - nq.bGef + 0.5) / (nq.bDa + 0.5));
+        q.naechte++;
+      }
+      quoteSichern();
+    }
+    S.fang[S.boden].push({ h: nq.hGef, b: nq.bGef });
+    // Die erste Nacht läuft langsam, damit der Ablauf klar wird; danach kürzere Pausen.
+    GESPIELT++;
+    var P = GESPIELT > 1
+      ? { ueber: 1400, takt: 60, rest: 900, hUeber: 1400, hJunge: 2500 }
+      : { ueber: 2600, takt: 120, rest: 1600, hUeber: 2500, hJunge: 4000 };
+    kopf();
+    $('nacht').className = 'morgen';
+    var ueber = S.maeuse.filter(function (m) { return !m.gefangen; });
+    var text;
+    if (S.gefangen === 0) text = 'Die Zeit ist um. Du hast keine Maus gefangen.';
+    else if (S.gefangen < CFG.fang && !CFG.auto) text = 'Die Zeit ist um. Du hast ' + S.gefangen + (S.gefangen === 1 ? ' Maus' : ' Mäuse') + ' gefangen. Die anderen Mäuse haben überlebt.';
+    else text = 'Die Nacht ist vorbei. Diese Mäuse haben überlebt.';
+    hinweis(text, P.hUeber);
+    var tok = S.tok;
+    setTimeout(function () {
+      if (tok !== S.tok) return;
+      var fehl = N - ueber.length, junge = [];
+      if (fehl === 0) {
+        S.bestand = ueber.map(function (m) { return m.farbe; });
+        S.reihen[S.boden].push(zaehlen(S.bestand));
+        zeigeMorgen(); lkAuffrischen();
+        return;
+      }
+      for (var i = 0; i < fehl; i++) {
+        var e = ueber[zufall(ueber.length)];
+        var j = { farbe: e.farbe, jung: true, gefangen: false };
+        platziereNeben(j, e);
+        S.maeuse.push(j);
+        junge.push(j);
+      }
+      hinweis('Die Mäuse, die überlebt haben, bekommen Junge. Im Spiel hat jedes Junge dieselbe Fellfarbe wie seine Eltern.', P.hJunge);
+      junge.forEach(function (j, k) {
+        setTimeout(function () { if (tok === S.tok) einblenden(j); }, k * P.takt);
+      });
+      setTimeout(function () {
+        if (tok !== S.tok) return;
+        S.bestand = ueber.map(function (m) { return m.farbe; }).concat(junge.map(function (m) { return m.farbe; }));
+        S.reihen[S.boden].push(zaehlen(S.bestand));
+        zeigeMorgen();
+        lkAuffrischen();
+      }, junge.length * P.takt + P.rest);
+    }, P.ueber);
+  }
+
+  function punkt(farbe) { return '<span class="punkt" style="background:' + FELL[farbe] + '"></span>'; }
+
+  // f: gefangene Mäuse je Nacht; mit f bekommt die Tabelle die Spalten „in der Nacht gefangen“.
+  function tabelle(r, markiere, f) {
+    var ph = punkt('hell') + 'hell', pb = punkt('braun') + 'braun';
+    var s = '<table class="tab' + (f ? ' mit-fang' : '') + '"><thead>' + (f
+      ? '<tr><th rowspan="2">Generation</th><th colspan="2">Mäuse</th><th colspan="2" class="trenn">von der Eule gefangen</th></tr>' +
+        '<tr><th>' + ph + '</th><th>' + pb + '</th><th class="trenn">' + ph + '</th><th>' + pb + '</th></tr>'
+      : '<tr><th>Generation</th><th>' + ph + '</th><th>' + pb + '</th></tr>') + '</thead><tbody>';
+    r.forEach(function (z, i) {
+      s += '<tr' + (markiere && i === r.length - 1 ? ' class="neu"' : '') + '><td>' + (i === 0 ? 'Start' : i) +
+        '</td><td>' + z.h + '</td><td>' + z.b + '</td>';
+      if (f) s += i === 0 || !f[i - 1] ? '<td class="trenn">–</td><td>–</td>'
+        : '<td class="trenn">' + f[i - 1].h + '</td><td>' + f[i - 1].b + '</td>';
+      s += '</tr>';
+    });
+    return s + '</tbody></table>';
+  }
+
+  function zeigeMorgen() {
+    var r = S.reihen[S.boden], k = r.length - 1, z = r[k], f = S.fang[S.boden][k - 1] || { h: 0, b: 0 },
+      letzte = S.nacht >= CFG.naechte;
+    $('morgen').innerHTML =
+      '<h2>Nach Nacht ' + S.nacht + ': Generation ' + k + '</h2>' +
+      '<p class="gross">Gefangen: ' + punkt('hell') + 'hell <b>' + f.h + '</b> &nbsp; ' + punkt('braun') + 'braun <b>' + f.b + '</b></p>' +
+      '<p>Nur Mäuse, die überlebt haben, bekommen Junge. Im Spiel hat jedes Junge dieselbe Fellfarbe wie seine Eltern.</p>' +
+      '<p class="gross">Jetzt: ' + punkt('hell') + 'hell <b>' + z.h + '</b> &nbsp; ' + punkt('braun') + 'braun <b>' + z.b + '</b></p>' +
+      tabelle(r, true) +
+      (S.boden === 'wanderung' ? '<p>Vergleiche mit deiner Hypothese.</p>'
+        : S.boden === 'wald' ? '<p>Für das Festland trägst du nur Start und Ende auf dem Arbeitsblatt ein.</p>'
+        : '<p>Trage die Zahlen in die Tabelle auf dem Arbeitsblatt ein.</p>') +
+      '<button class="knopf" data-los="weiter">' + (letzte ? 'Ergebnis ansehen' : 'Nächste Nacht') + '</button>';
+    $('morgen').className = 'an';
+    $('morgen').scrollTop = 0;
+    sichern('morgen');
+  }
+
+  // ---------- Diagramm ----------
+  function diagramm(reihen, klein) {
+    var B = klein ? 340 : 440, HH = klein ? 230 : 270, l = 60, rr = 18, o = 16, u = 42, w = B - l - rr, h = HH - o - u;
+    var n = 0;
+    reihen.forEach(function (s) { n = Math.max(n, s.werte.length); });
+    function xs(i) { return l + (n > 1 ? w * i / (n - 1) : w / 2); }
+    function ys(p) { return o + h - h * p / 100; }
+    var s = '<svg class="diagramm" viewBox="0 0 ' + B + ' ' + HH + '" role="img" aria-label="Anteil heller Mäuse je Generation">';
+    [0, 25, 50, 75, 100].forEach(function (p) {
+      var y = ys(p).toFixed(1);
+      s += '<line x1="' + l + '" x2="' + (l + w) + '" y1="' + y + '" y2="' + y + '" stroke="' + (p === 0 ? '#555' : '#d5d7dc') + '" stroke-width="1"/>' +
+        '<text x="' + (l - 6) + '" y="' + (+y + 5) + '" text-anchor="end" font-size="14" fill="#4a4f57">' + p + ' %</text>';
+    });
+    for (var i = 0; i < n; i++) {
+      s += '<text x="' + xs(i).toFixed(1) + '" y="' + (o + h + 20) + '" text-anchor="middle" font-size="14" fill="#4a4f57">' + (i === 0 ? 'Start' : i) + '</text>';
+    }
+    s += '<text x="' + (l + w / 2) + '" y="' + (HH - 4) + '" text-anchor="middle" font-size="14" fill="#4a4f57">Generation</text>';
+    s += '<text transform="translate(14 ' + (o + h / 2) + ') rotate(-90)" text-anchor="middle" font-size="14" fill="#4a4f57">Anteil heller Mäuse</text>';
+    reihen.forEach(function (r) {
+      var pts = r.werte.map(function (v, k) { return xs(k).toFixed(1) + ',' + ys(v).toFixed(1); }).join(' ');
+      s += '<polyline points="' + pts + '" fill="none" stroke="' + r.farbe + '" stroke-width="3.5" stroke-linejoin="round"/>';
+      r.werte.forEach(function (v, k) {
+        var y = ys(v);
+        s += '<circle cx="' + xs(k).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5" fill="' + r.farbe + '"/>';
+        var tx = k === 0 ? xs(k) + 7 : xs(k), anker = k === 0 ? 'start' : 'middle';
+        s += '<text x="' + tx.toFixed(1) + '" y="' + (y < o + 18 ? y + 22 : y - 10).toFixed(1) + '" text-anchor="' + anker + '" font-size="13" font-weight="600" fill="' + r.farbe + '">' + v + ' %</text>';
+      });
+    });
+    return s + '</svg>';
+  }
+  function anteile(r) { return r.map(prozent); }
+
+  // ---------- Bildschirme ----------
+  function schirm(html) {
+    $('morgen').className = '';
+    $('schirm').innerHTML = html;
+    $('schirm').className = 'an scroll';
+    $('schirm').scrollTop = 0;
+  }
+  var EULE_BILD = '<svg class="eule-bild" viewBox="0 0 100 100" width="96" height="96" aria-hidden="true">' +
+    '<circle cx="86" cy="14" r="10" fill="#f3e9b5" stroke="#d9cf96" stroke-width="2"/>' +
+    '<path d="M20,42 L27,16 L40,32 Q50,28 60,32 L73,16 L80,42 Q84,72 50,92 Q16,72 20,42Z" fill="#6b5a45"/>' +
+    '<circle cx="38" cy="47" r="11" fill="#f3e9b5"/><circle cx="62" cy="47" r="11" fill="#f3e9b5"/>' +
+    '<circle cx="38" cy="47" r="5" fill="#1d2440"/><circle cx="62" cy="47" r="5" fill="#1d2440"/>' +
+    '<path d="M46,57 L54,57 L50,65Z" fill="#d9a441"/></svg>';
+
+  function intro(art) {
+    S.vorschau = art; S.boden = null; S.nacht = 0; S.laeuft = false; S.morgen = false;
+    S.maeuse = []; malMaeuse();
+    if (S.bodenGemalt !== BOEDEN[art].boden) malBoden(BOEDEN[art].boden);
+    $('nacht').className = '';
+    kopf();
+    var h = startHell(art), inhalt;
+    if (art === 'sand') {
+      inhalt = EULE_BILD + '<h1>Die Eule und die Strandmäuse</h1>' +
+        '<p class="gross"><b>Du bist eine Eule. Es ist Nacht, und du hast Hunger. Fang ' + CFG.fang + ' Mäuse.</b></p>' +
+        '<ol class="schritte">' +
+        (CFG.auto
+          ? '<li><b>Nacht:</b> Die Eule jagt von selbst. Schau zu.</li>'
+          : '<li><b>Nacht:</b> Tippe Mäuse an, um sie zu fangen. Du hast ' + CFG.zeit + ' Sekunden. Tippst du daneben, musst du kurz warten.</li>') +
+        '<li><b>Morgen:</b> Die Mäuse, die überlebt haben, bekommen Junge. Im Spiel steht jede Nacht für eine Generation.</li>' +
+        '<li><b>Tabelle:</b> Trage die Zahlen auf dem Arbeitsblatt ein.</li></ol>' +
+        '<p>Das Spiel dauert ' + CFG.naechte + ' Nächte, also ' + gen(CFG.naechte) + '. Am Anfang sind ' + h + ' von ' + N + ' Mäusen hell.</p>' +
+        '<p><b>In diesem Spiel ändert keine Maus ihre Farbe. Werden die hellen Mäuse trotzdem mehr?</b></p>' +
+        '<button class="knopf" data-los="spiel-sand">Los geht’s: Sandinsel</button>';
+    } else if (art === 'wald') {
+      inhalt = '<h1>Stern-Aufgabe: Festland</h1>' +
+        '<p class="gross">Jetzt jagst du auf dem Festland. Der Boden ist dunkel.</p>' +
+        '<p class="gross">Am Anfang sind wieder ' + h + ' von ' + N + ' Mäusen hell.</p>' +
+        '<p class="gross"><b>Schreibe zuerst deine Hypothese zu Aufgabe 3 auf das Arbeitsblatt.</b></p>' +
+        '<p>Für das Festland trägst du nur Start und Ende auf dem Arbeitsblatt ein.</p>' +
+        '<button class="knopf" data-los="spiel-wald">Los geht’s: Festland</button>';
+    } else {
+      inhalt = '<h1>Noch Zeit? Wanderung</h1>' +
+        '<p class="gross">Eine Gruppe Mäuse von der Sandinsel wandert auf das Festland. Der Boden ist dunkel.</p>' +
+        '<p class="gross">Am Anfang sind ' + h + ' von ' + N + ' Mäusen hell.</p>' +
+        '<p class="gross"><b>Überlege zuerst: Was passiert mit den hellen Mäusen?</b></p>' +
+        '<button class="knopf" data-los="spiel-wanderung">Los geht’s: Wanderung</button>';
+    }
+    schirm('<div class="karte">' + inhalt + '</div>');
+    sichern('intro');
+  }
+
+  function ergebnis() {
+    var art = S.boden, r = S.reihen[art], z = r[r.length - 1], p = prozent(z);
+    S.laeuft = false; S.morgen = false;
+    $('nacht').className = '';
+    var knoepfe, auftrag;
+    if (art === 'sand') {
+      // Erst das Lernprodukt (Erklärsatz zu Aufgabe 2), dann die Stern-Aufgabe 3 (Festland)
+      auftrag = '<p>Trage alle Zahlen auf dem Arbeitsblatt ein.</p>' +
+        '<p class="gross"><b>Schreibe jetzt deinen Erklärsatz zu Aufgabe 2.</b> Vergleiche das Ergebnis mit deiner Hypothese oben auf dem Arbeitsblatt und kreuze unter der Tabelle an.</p>' +
+        '<p>Schon fertig? Dann kommt die Stern-Aufgabe 3: das Festland.</p>';
+      knoepfe = '<button class="knopf" data-los="intro-wald">Erklärsatz fertig: Stern-Aufgabe Festland</button>';
+    } else if (art === 'wald') {
+      auftrag = '<p>Trage Start und Ende auf dem Arbeitsblatt ein. Vergleiche mit deiner Hypothese zu Aufgabe 3 und kreuze an.</p>';
+      knoepfe = '<button class="knopf" data-los="vergleich">Weiter: Vergleich</button>';
+    } else {
+      auftrag = '<p>Vergleiche das Ergebnis mit deiner Hypothese.</p>';
+      knoepfe = '<button class="knopf" data-los="vergleich">Zurück zum Vergleich</button>' +
+        '<button class="knopf zweit" data-los="neu">Neu starten</button>';
+    }
+    schirm('<div class="karte breit"><h1>' + BOEDEN[art].name + ': Ergebnis</h1>' +
+      '<div class="spalten"><div class="tab-spalte">' + tabelle(r, false, S.fang[art]) + '</div><div>' +
+      diagramm([{ farbe: BOEDEN[art].farbe, werte: anteile(r) }], false) + '</div></div>' +
+      '<p class="gross">Nach ' + gen(r.length - 1) + ' sind <b>' + z.h + ' von ' + N + '</b> Mäusen hell. Das sind <b class="riesig">' + p + ' %</b>.</p>' +
+      (art === 'sand' ? '<p class="gross">Für die Strichliste: <b>' + klasse(z.h) + '</b></p>' : '') +
+      auftrag + knoepfe + '</div>');
+    S.nacht = 0; kopf();
+    sichern('ergebnis');
+  }
+
+  function vergleich() {
+    S.boden = null; S.vorschau = null; S.nacht = 0; kopf();
+    var arten = ['sand', 'wald', 'wanderung'].filter(function (a) {
+      var r = S.reihen[a];
+      return r && (a !== 'wanderung' || r.length > CFG.naechte);
+    });
+    var teile = arten.map(function (a) {
+      var r = S.reihen[a], z = r[r.length - 1];
+      return '<div><h2>' + BOEDEN[a].name + '</h2>' + diagramm([{ farbe: BOEDEN[a].farbe, werte: anteile(r) }], true) +
+        '<p>Start: <b>' + prozent(r[0]) + ' %</b> hell</p>' +
+        '<p class="gross">Nach ' + gen(r.length - 1) + ': <b class="riesig">' + prozent(z) + ' %</b> hell</p>' +
+        // Sandinsel mit der Spalte „von der Eule gefangen“: Der Tipp auf dem Arbeitsblatt verweist darauf.
+        tabelle(r, false, a === 'sand' ? S.fang[a] : null) + '</div>';
+    });
+    var namen = arten.map(function (a) { return BOEDEN[a].name; });
+    var titel = namen.length > 1 ? namen.slice(0, -1).join(', ') + ' und ' + namen[namen.length - 1] : namen.join('');
+    var wanderungFertig = arten.indexOf('wanderung') >= 0;
+    schirm('<div class="karte breit vergleich"><h1>Anteil heller Mäuse: ' + titel + '</h1><div class="spalten">' + teile.join('') + '</div>' +
+      '<button class="knopf" data-los="intro-wanderung">' + (wanderungFertig ? 'Wanderung noch einmal' : 'Noch Zeit? Wanderung') + '</button>' +
+      '<button class="knopf zweit" data-los="neu">Neu starten</button></div>');
+    sichern('vergleich');
+  }
+
+  // ---------- Automatik ----------
+  function autoFang() {
+    if (!S.laeuft) { clearInterval(S.autoTimer); return; }
+    var frei = S.maeuse.filter(function (m) { return !m.gefangen && !m.jung; });
+    if (!frei.length) return;
+    var w = frei.map(function (m) { return getarnt(m.farbe) ? CFG.fangfaktor : 1; });
+    var summe = w.reduce(function (a, b) { return a + b; }, 0), i = 0;
+    if (summe === 0) i = zufall(frei.length);
+    else {
+      var x = Math.random() * summe;
+      while (i < w.length - 1 && x >= w[i]) { x -= w[i]; i++; }
+    }
+    fange(frei[i]);
+  }
+  function autoStart() {
+    clearInterval(S.autoTimer);
+    S.autoTimer = setInterval(autoFang, 600);
+  }
+
+  // ---------- Testrechnung (wie im Spiel, ohne Bild) ----------
+  function simLauf(f, h0) { // f: Fangfaktor der getarnten Farbe, h0: Zahl der getarnten Mäuse zu Beginn
+    var h = h0, b = N - h0, n, k;
+    for (n = 0; n < CFG.naechte; n++) {
+      for (k = 0; k < CFG.fang; k++) {
+        if (h + b === 0) break;
+        var w = h * f + b;
+        if ((w === 0 && h > 0) || (w > 0 && Math.random() < h * f / w)) h--; else b--;
+      }
+      // Jedes Junge erbt die Farbe eines zufällig gewählten Überlebenden: Anteil der Überlebenden vor den Geburten festhalten
+      var s = h + b, p = h / s;
+      for (k = 0; k < N - s; k++) { if (Math.random() < p) h++; else b++; }
+    }
+    return h;
+  }
+  function testrechnung(art, laeufe, f) {
+    var h0 = startHell(art), sand = BOEDEN[art].boden === 'sand', erg = [];
+    for (var i = 0; i < laeufe; i++) {
+      erg.push(sand ? simLauf(f, h0) : N - simLauf(f, N - h0));
+    }
+    erg.sort(function (a, b) { return a - b; });
+    var kl = { 'unter 25 %': 0, '25 bis 50 %': 0, 'über 50 bis 75 %': 0, 'über 75 %': 0 };
+    erg.forEach(function (h) { kl[klasse(h)]++; });
+    return { median: Math.round(erg[Math.floor(laeufe / 2)] / N * 100), kl: kl, n: laeufe };
+  }
+
+  // ---------- Lehrkraft ----------
+  var lkTest = '';
+  // Gemessener Faktor nach Manly: ln(überlebender Anteil der getarnten) / ln(überlebender Anteil der auffälligen),
+  // über die gespielten Nächte summiert. Der Quotient der Fangraten wäre verzerrt, weil die Eule je Nacht ein Drittel
+  // frisst (Simulation am Spielmodell, f = 0,3: Quotient im Median 0,39, Manly 0,30).
+  function gemessen(art) {
+    var q = QUOTE[art];
+    if (!q || !q.naechte) return null;
+    var sand = BOEDEN[art].boden === 'sand';
+    var lg = sand ? q.lnH : q.lnB, la = sand ? q.lnB : q.lnH;
+    return la < 0 ? Math.max(0, lg / la) : null;
+  }
+  function komma(x, n) { return x.toFixed(n).replace('.', ','); }
+  function quoteZeile(art) {
+    var q = QUOTE[art];
+    if (!q || (q.hDa + q.bDa) === 0) return '<tr><td>' + BOEDEN[art].name + '</td><td colspan="4">noch nicht gespielt</td></tr>';
+    var rh = q.hDa ? q.hGef / q.hDa : 0, rb = q.bDa ? q.bGef / q.bDa : 0, f = gemessen(art);
+    return '<tr><td>' + BOEDEN[art].name + '</td><td>' + (q.naechte || 0) + '</td><td>' + q.hGef + ' von ' + q.hDa + ' (' + Math.round(rh * 100) + ' %)</td><td>' +
+      q.bGef + ' von ' + q.bDa + ' (' + Math.round(rb * 100) + ' %)</td><td><b>' + (f === null ? '–' : komma(f, 2)) + '</b></td></tr>';
+  }
+  function lkAuffrischen() {
+    if (!CFG.lehrkraft) return;
+    var p = $('lk-panel');
+    if (p.className.indexOf('an') < 0) return;
+    var basis = location.href.split('?')[0];
+    p.innerHTML = '<h3>Lehrkraft</h3>' +
+      '<p>Einstellungen: start ' + CFG.start + ' %, wanderung ' + CFG.wanderung + ' %, naechte ' + CFG.naechte + ', fang ' + CFG.fang +
+      ', zeit ' + CFG.zeit + ' s, tarnung ' + CFG.tarnung + ', fangfaktor ' + CFG.fangfaktor + '</p>' +
+      '<p><b>Gemessene Fangquote</b> (gespielte Nächte, ohne Automatik). Faktor nach Manly: Logarithmus des überlebenden Anteils der getarnten Mäuse geteilt durch den der auffälligen, über alle Nächte summiert. Er entspricht <code>fangfaktor</code> im Modell. Ziel auf der Sandinsel 0,15 bis 0,3; ein einzelnes Spiel streut stark, deshalb mindestens drei Spiele zu je fünf Nächten zusammen messen.</p>' +
+      '<table><tr><th>Boden</th><th>Nächte</th><th>helle gefangen</th><th>braune gefangen</th><th>Faktor</th></tr>' +
+      quoteZeile('sand') + quoteZeile('wald') + quoteZeile('wanderung') + '</table>' +
+      '<p class="hinweis-klein">Menschen fangen zuerst die Mäuse, die sie sehen. Liegt der Faktor unter 0,15, enden fast alle Durchgänge über 75 %, und die Strichliste streut kaum: <code>tarnung</code> senken (etwa 0.35) und neu messen. Liegt er über 0,3, werden die hellen Mäuse in vielen Durchgängen kaum mehr: <code>tarnung</code> erhöhen (etwa 0.55).</p>' +
+      (S.laeuft ? '<button class="knopf" data-los="lk-auto">Diese Nacht: Eule automatisch</button>' : '') +
+      '<button class="knopf zweit" data-los="lk-test">Testrechnung (1000 Läufe)</button>' + lkTest +
+      '<p><b>Adressen</b><br>Eule jagt allein: <code>' + basis + '?auto=1</code><br>Mehr Zeit: <code>' + basis + '?zeit=30</code></p>' +
+      '<p class="hinweis-klein">Erstellt mit KI-Unterstützung (Claude), Stand November 2026. Vereinfachtes Modell nach Untersuchungen zur Strandmaus (Peromyscus polionotus) von Hoekstra u. a.; Grenzen: Die Mäuse sitzen still, es gibt einen Fressfeind, jedes Junge hat einen Elternteil, es gibt keine Mutation.</p>' +
+      '<button class="knopf zweit" data-los="lk-zu">Schließen</button>';
+  }
+  function lkTestAnzeigen() {
+    var s = '<table><tr><th>Boden</th><th>Faktor</th><th>Median hell</th><th>unter 25</th><th>25–50</th><th>50–75</th><th>über 75</th></tr>';
+    function zeile(a, f, wie) {
+      var t = testrechnung(a, 1000, f);
+      function pz(k) { return Math.round(t.kl[k] / t.n * 100) + ' %'; }
+      s += '<tr><td>' + BOEDEN[a].name + '</td><td>' + komma(f, 2) + ' ' + wie + '</td><td>' + t.median + ' %</td><td>' + pz('unter 25 %') + '</td><td>' + pz('25 bis 50 %') +
+        '</td><td>' + pz('über 50 bis 75 %') + '</td><td>' + pz('über 75 %') + '</td></tr>';
+    }
+    ['sand', 'wald', 'wanderung'].forEach(function (a) {
+      zeile(a, CFG.fangfaktor, '(Adresse)');
+      var g = gemessen(a);
+      if (g !== null) zeile(a, g, '(gemessen)');
+    });
+    lkTest = '<p><b>Testrechnung</b>, 1000 Läufe je Zeile, Anteil heller Mäuse nach ' + CFG.naechte + ' Nächten. „Gemessen“ zeigt, wie die Strichliste mit der Fangquote der gespielten Nächte aussähe:</p>' + s + '</table>';
+    lkAuffrischen();
+  }
+
+  // ---------- Spielstand im Tab (sessionStorage) ----------
+  // Nur Spielzahlen. Gesichert wird an jedem Bildschirmwechsel; eine angefangene Nacht beginnt nach Neuladen neu.
+  var SPEICHER = 'strandmaus-spiel-1', SPEICHER_Q = 'strandmaus-quote-1';
+  function speicher() { try { return window.sessionStorage || null; } catch (e) { return null; } }
+  function sichern(ansicht) {
+    var sp = speicher();
+    if (!sp) return;
+    try {
+      sp.setItem(SPEICHER, JSON.stringify({
+        adresse: location.search, ansicht: ansicht, art: S.boden || S.vorschau, nacht: S.nacht,
+        bestand: S.bestand, reihen: S.reihen, fang: S.fang
+      }));
+    } catch (e) { /* Speicher voll oder gesperrt: Spiel läuft ohne Sicherung weiter */ }
+  }
+  function quoteSichern() {
+    var sp = speicher();
+    if (!sp) return;
+    try { sp.setItem(SPEICHER_Q, JSON.stringify({ adresse: location.search, quote: QUOTE })); } catch (e) { /* ohne Sicherung */ }
+  }
+  function vergessen() {
+    var sp = speicher();
+    if (!sp) return;
+    try { sp.removeItem(SPEICHER); } catch (e) { /* nichts zu tun */ }
+  }
+  function lies(sp, schluessel) {
+    try { return JSON.parse(sp.getItem(schluessel) || 'null'); } catch (e) { return null; }
+  }
+  function wiederherstellen() {
+    var sp = speicher();
+    if (!sp) return false;
+    var q = lies(sp, SPEICHER_Q), d = lies(sp, SPEICHER);
+    if (q && q.adresse === location.search && q.quote) QUOTE = q.quote;
+    if (!d || d.adresse !== location.search || !d.ansicht || !d.reihen) return false;
+    S.reihen = d.reihen; S.fang = d.fang || {};
+    GESPIELT = Object.keys(S.reihen).length ? 1 : 0;
+    var art = d.art;
+    if (d.ansicht === 'intro' && BOEDEN[art]) { intro(art); return true; }
+    if (d.ansicht === 'vergleich') { malBoden('wald'); vergleich(); return true; }
+    if (!BOEDEN[art] || !S.reihen[art]) return false;
+    if (!S.fang[art]) S.fang[art] = [];
+    S.boden = art; S.vorschau = art;
+    malBoden(BOEDEN[art].boden);
+    if (d.ansicht === 'ergebnis') { ergebnis(); return true; }
+    if (d.ansicht === 'morgen' && d.nacht > 0 && d.bestand && d.bestand.length) {
+      S.nacht = d.nacht; S.bestand = d.bestand; S.morgen = true; S.laeuft = false;
+      var f = S.fang[art][S.nacht - 1] || { h: 0, b: 0 };
+      S.gefangen = f.h + f.b;
+      S.maeuse = S.bestand.map(function (fa) { return { farbe: fa, jung: false, gefangen: false }; });
+      verteile(S.maeuse); malMaeuse();
+      $('nacht').className = 'morgen';
+      kopf(); zeigeMorgen();
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- Neustart ----------
+  var neuZeit = 0;
+  function neuKnopf(knopf) {
+    if (Date.now() - neuZeit < 3000) {
+      neuZeit = 0;
+      clearInterval(S.timer); clearInterval(S.autoTimer);
+      $('neu').textContent = 'Neu starten';
+      vergessen();
+      neuerZustand();
+      intro('sand');
+      return;
+    }
+    neuZeit = Date.now();
+    var alt = knopf.textContent;
+    knopf.textContent = 'Sicher? Noch einmal tippen';
+    setTimeout(function () { if (knopf.textContent !== alt) knopf.textContent = alt; }, 3000);
+  }
+
+  // ---------- Ereignisse ----------
+  var EV = window.PointerEvent ? 'pointerdown' : 'touchstart';
+  // Fehltipp: kurze Sperre, damit wildes Tippen nicht zufällig getarnte Mäuse fängt.
+  var SPERRE = 700, sperreBis = 0;
+  function daneben(e) {
+    var r = $('maeuse').getBoundingClientRect();
+    var p = e.touches && e.touches[0] ? e.touches[0] : e;
+    var x = p.clientX - r.left, y = p.clientY - r.top;
+    var c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', x.toFixed(1)); c.setAttribute('cy', y.toFixed(1));
+    c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#ffffff'); c.setAttribute('stroke-width', '3');
+    $('effekte').appendChild(c);
+    animiere(SPERRE, function (k) {
+      c.setAttribute('r', (8 + 22 * k).toFixed(1));
+      c.setAttribute('opacity', (0.8 * (1 - k)).toFixed(3));
+    }, function () { if (c.parentNode) c.parentNode.removeChild(c); });
+  }
+  $('maeuse').addEventListener(EV, function (e) {
+    if (!S.laeuft || CFG.auto) return;
+    e.preventDefault();
+    if (Date.now() < sperreBis) return;
+    var t = e.target;
+    while (t && t !== this && !(t.getAttribute && t.getAttribute('class') === 'maus')) t = t.parentNode;
+    if (t && t._maus) fange(t._maus);
+    else { sperreBis = Date.now() + SPERRE; daneben(e); }
+  });
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    while (t && t !== document && !(t.getAttribute && t.getAttribute('data-los'))) t = t.parentNode;
+    if (!t || t === document) return;
+    var los = t.getAttribute('data-los');
+    if (los === 'neu') neuKnopf(t);
+    else if (los === 'spiel-sand') bodenStart('sand');
+    else if (los === 'spiel-wald') bodenStart('wald');
+    else if (los === 'spiel-wanderung') bodenStart('wanderung');
+    else if (los === 'intro-wald') intro('wald');
+    else if (los === 'intro-wanderung') intro('wanderung');
+    else if (los === 'vergleich') vergleich();
+    else if (los === 'weiter') { if (S.nacht >= CFG.naechte) ergebnis(); else nachtStart(); }
+    else if (los === 'lk-auto') { if (S.laeuft) { S.nq.auto = true; autoStart(); } }
+    else if (los === 'lk-test') lkTestAnzeigen();
+    else if (los === 'lk-zu') $('lk-panel').className = 'scroll';
+  });
+  if (CFG.lehrkraft) {
+    $('lk').hidden = false;
+    $('lk').addEventListener('click', function () {
+      var p = $('lk-panel');
+      p.className = p.className.indexOf('an') < 0 ? 'scroll an' : 'scroll';
+      lkAuffrischen();
+    });
+  }
+  // Kein Zoomen, kein Ziehen der Seite, kein Neuladen durch Herunterziehen
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+  document.addEventListener('touchmove', function (e) {
+    var t = e.target;
+    while (t && t !== document) {
+      if (t.className && typeof t.className === 'string' && t.className.indexOf('scroll') >= 0) return;
+      t = t.parentNode;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  var rz = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(rz);
+    rz = setTimeout(function () {
+      masse();
+      if (S.bodenGemalt) { var b = S.bodenGemalt; S.bodenGemalt = null; malBoden(b); }
+      malMaeuse();
+    }, 150);
+  });
+
+  // ---------- Start ----------
+  $('defs').innerHTML = mausGruppe('m-hell', FELL.hell) + mausGruppe('m-braun', FELL.braun);
+  neuerZustand();
+  masse();
+  if (!wiederherstellen()) { neuerZustand(); intro('sand'); }
+})();
+</script>
+</body>
+</html>
