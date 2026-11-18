@@ -26,8 +26,9 @@
     auto=1          die Eule jagt von selbst (Beamer, Lernende, die nicht tippen können)
     auto=2          Selbstlauf für den Beamer: wie auto=1, dazu laufen nach dem ersten Tipp alle Nächte, die Sandinsel
                     und das Festland ohne weiteren Tipp bis zum Vergleich
-    halt=45         Halt nach Nacht 1 auf der Sandinsel: Der Knopf „Nächste Nacht“ ist so viele Sekunden gesperrt
-                    (0 schaltet den Halt aus; mit auto gibt es keinen Halt)
+    halt=0          Halt nach Nacht 1 auf der Sandinsel: Der Knopf „Nächste Nacht“ ist so viele Sekunden gesperrt
+                    (Standard 0: kein Halt; mit auto gibt es keinen Halt)
+    stern=1         Stern-Aufgabe: Das Spiel beginnt mit der Wanderung; nur dann gibt es die Wanderung
     lehrkraft=1     Knopf „Lehrkraft“: gemessene Fangquote, Automatik für eine Nacht, Testrechnung
 -->
 <style>
@@ -216,7 +217,8 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     fangfaktor: zahl('fangfaktor', 0.2, 0, 1),
     auto: Q.get('auto') === '1' || Q.get('auto') === '2',
     selbst: Q.get('auto') === '2',
-    halt: Math.round(zahl('halt', 45, 0, 600)),
+    halt: Math.round(zahl('halt', 0, 0, 600)),
+    stern: Q.get('stern') === '1',
     lehrkraft: Q.get('lehrkraft') === '1'
   };
 
@@ -817,14 +819,14 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
         '<p><b>In diesem Spiel ändert keine Maus ihre Farbe. Werden die hellen Mäuse trotzdem mehr?</b></p>' +
         '<button class="knopf" data-los="spiel-sand">Los geht’s: Sandinsel</button>';
     } else if (art === 'wald') {
-      inhalt = '<h1>Stern-Aufgabe: Festland</h1>' +
+      inhalt = '<h1>Aufgabe 3: Festland</h1>' +
         '<p class="gross">Jetzt jagst du auf dem Festland. Der Boden ist dunkel.</p>' +
         '<p class="gross">Am Anfang sind wieder ' + h + ' von ' + N + ' Mäusen hell.</p>' +
         '<p class="gross"><b>Schreibe zuerst deine Hypothese zu Aufgabe 3 auf das Arbeitsblatt.</b></p>' +
         '<p>Für das Festland trägst du nur Start und Ende auf dem Arbeitsblatt ein.</p>' +
         '<button class="knopf" data-los="spiel-wald">Los geht’s: Festland</button>';
     } else {
-      inhalt = '<h1>Noch Zeit? Wanderung</h1>' +
+      inhalt = '<h1>Stern-Aufgabe: Wanderung</h1>' +
         '<p class="gross">Eine Gruppe Mäuse von der Sandinsel wandert auf das Festland. Der Boden ist dunkel.</p>' +
         '<p class="gross">Am Anfang sind ' + h + ' von ' + N + ' Mäusen hell.</p>' +
         '<p class="gross"><b>Überlege zuerst: Was passiert mit den hellen Mäusen?</b></p>' +
@@ -842,11 +844,11 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     $('nacht').className = '';
     var knoepfe, auftrag;
     if (art === 'sand') {
-      // Erst das Lernprodukt (Erklärsatz zu Aufgabe 2), dann die Stern-Aufgabe 3 (Festland)
+      // Erst das Lernprodukt (Erklärsatz zu Aufgabe 2), dann Aufgabe 3 (Festland) für alle
       auftrag = '<p>Trage alle Zahlen auf dem Arbeitsblatt ein.</p>' +
-        '<p class="gross"><b>Schreibe jetzt deinen Erklärsatz zu Aufgabe 2.</b> Vergleiche das Ergebnis mit deiner Hypothese oben auf dem Arbeitsblatt und kreuze unter der Tabelle an.</p>' +
-        '<p>Schon fertig? Dann kommt die Stern-Aufgabe 3: das Festland.</p>';
-      knoepfe = '<button class="knopf" data-los="intro-wald">Erklärsatz fertig: Stern-Aufgabe Festland</button>';
+        '<p class="gross"><b>Schreibe jetzt deinen Erklärsatz zu Aufgabe 2.</b></p>' +
+        '<p>Danach kommt Aufgabe 3: das Festland.</p>';
+      knoepfe = '<button class="knopf" data-los="intro-wald">Erklärsatz fertig: weiter zum Festland</button>';
     } else if (art === 'wald') {
       auftrag = '<p>Trage Start und Ende auf dem Arbeitsblatt ein. Vergleiche mit deiner Hypothese zu Aufgabe 3 und kreuze an.</p>';
       knoepfe = '<button class="knopf" data-los="vergleich">Weiter: Vergleich</button>';
@@ -886,7 +888,8 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
     schirm('<div class="karte breit vergleich' + (arten.length > 2 ? ' drei' : '') + '"><h1>Anteil heller Mäuse: ' + titel +
       '</h1><div class="spalten">' + teile.join('') + '</div>' +
       // Kein fester Fuß wie auf der Ergebnis-Karte: Am Beamer sollen die Tabellen frei bleiben, die Knöpfe eilen hier nicht.
-      '<button class="knopf" data-los="intro-wanderung">' + (wanderungFertig ? 'Wanderung noch einmal' : 'Noch Zeit? Wanderung') + '</button>' +
+      // Die Wanderung gibt es nur über den QR-Code der Lehrkraft (?stern=1), damit sich niemand dorthin durchtippt.
+      (CFG.stern ? '<button class="knopf" data-los="intro-wanderung">' + (wanderungFertig ? 'Wanderung noch einmal' : 'Wanderung') + '</button>' : '') +
       '<button class="knopf zweit" data-los="neu">Neu starten</button></div>');
     sichern('vergleich');
   }
@@ -1208,7 +1211,7 @@ code{font-size:14px;background:#f1f2f5;padding:1px 4px;border-radius:4px;-webkit
   $('defs').innerHTML = mausGruppe('m-hell', FELL.hell) + mausGruppe('m-braun', FELL.braun);
   neuerZustand();
   masse();
-  if (!wiederherstellen()) { vergessen(); neuerZustand(); intro('sand'); }
+  if (!wiederherstellen()) { vergessen(); neuerZustand(); intro(CFG.stern ? 'wanderung' : 'sand'); }
 })();
 </script>
 </body>

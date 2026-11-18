@@ -31,7 +31,8 @@ APPS = [
         "ordner": "strandmaus",
         "quelle": VAULT / "20_Lerngruppen" / "Ausbildungsunterricht" / "8.1-Biologie" / "26-11-19-UB-Strandmaus"
         / "1119-Strandmaus-Spiel.html",
-        "qr": [("1119-Strandmaus-Spiel-QR.png", ""), ("1119-Strandmaus-Spiel-QR-Lehrkraft.png", "?lehrkraft=1")],
+        "qr": [("1119-Strandmaus-Spiel-QR.png", ""), ("1119-Strandmaus-Spiel-QR-Lehrkraft.png", "?lehrkraft=1"),
+               ("1119-Strandmaus-Spiel-QR-Stern.png", "?stern=1")],
     },
 ]
 
